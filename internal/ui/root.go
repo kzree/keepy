@@ -2,91 +2,70 @@
 package ui
 
 import (
-	"fmt"
-	"strings"
-
 	tea "charm.land/bubbletea/v2"
+	"kzree.com/keepy/internal/ui/screens"
 )
 
-type model struct {
-	choices  []string
-	cursor   int
-	selected map[int]struct{}
+type RootModel struct {
+	activeView screen
+
+	login screens.LoginModel
+	list  screens.ListModel
 
 	width  int
 	height int
 }
 
-func NewRootModel() model {
-	return model{
-		choices:  []string{"Buy carrots", "Buy celery", "Buy kohlrabi"},
-		selected: make(map[int]struct{}),
+func NewRootModel() RootModel {
+	return RootModel{
+		activeView: screenLogin,
+		login:      screens.NewLoginModel(),
 	}
 }
 
-func (m model) Init() tea.Cmd {
+func (r RootModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
 
 		case "ctrl+c", "q":
-			return m, tea.Quit
+			return r, tea.Quit
 
 		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
-			}
-
 		case "down", "j":
-			if m.cursor < len(m.choices)-1 {
-				m.cursor++
-			}
-
-		case "enter", "space":
-			_, ok := m.selected[m.cursor]
-			if ok {
-				delete(m.selected, m.cursor)
+			if r.activeView == screenLogin {
+				r.activeView = screenList
 			} else {
-				m.selected[m.cursor] = struct{}{}
+				r.activeView = screenLogin
 			}
+		case "enter", "space":
+			return r, nil
 		}
 
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		r.width = msg.Width
+		r.height = msg.Height
 	}
 
-	return m, nil
+	return r, nil
 }
 
-func renderBody(m model) string {
-	var s strings.Builder
-
-	s.WriteString("What should we buy at the market?\n\n")
-
-	for i, choice := range m.choices {
-		cursor := " "
-		if m.cursor == i {
-			cursor = ">"
-		}
-
-		checked := " "
-		if _, ok := m.selected[i]; ok {
-			checked = "x"
-		}
-
-		fmt.Fprintf(&s, "%s [%s] %s\n", cursor, checked, choice)
+func (r *RootModel) renderCurrentView() string {
+	switch r.activeView {
+	case screenLogin:
+		return r.login.View().Content
+	case screenList:
+		return r.list.View().Content
 	}
 
-	s.WriteString("\nPress q to quit.\n")
-	return s.String()
+	return ""
 }
 
-func (m model) View() tea.View {
-	body := renderBody(m)
-	return tea.NewView(renderFrame(body, m.width, m.height))
+func (r RootModel) View() tea.View {
+	body := r.renderCurrentView()
+	return tea.NewView(r.renderFrame(body))
 }

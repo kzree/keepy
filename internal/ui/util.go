@@ -2,11 +2,11 @@ package ui
 
 import "kzree.com/keepy/internal/style"
 
-func renderFrame(content string, width, height int) string {
+func (r *RootModel) renderFrame(content string) string {
 	style := style.Frame
 	frameWidth, frameHeight := style.GetFrameSize()
-	contentWidth := max(0, width-frameWidth)
-	contentHeight := max(0, height-frameHeight)
+	contentWidth := max(0, r.width-frameWidth)
+	contentHeight := max(0, r.height-frameHeight)
 	return style.
 		Width(contentWidth).
 		Height(contentHeight).
