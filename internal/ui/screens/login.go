@@ -10,6 +10,18 @@ import (
 
 const authenticationText = "Authenticating..."
 
+const (
+	dbPathKey      = "dbPath"
+	keyFilePathKey = "keyFilePath"
+	passwordKey    = "pwd"
+)
+
+type LoginSubmitMsg struct {
+	DBPath      string
+	KeyFilePath string
+	Password    string
+}
+
 type LoginModel struct {
 	form    *huh.Form
 	spinner spinner.Model
@@ -26,13 +38,13 @@ func NewLoginModel() LoginModel {
 			huh.NewGroup(
 				huh.NewInput().
 					Title("Database path").
-					Key("dbPath"),
+					Key(dbPathKey),
 				huh.NewInput().
 					Title("Key file path").
-					Key("keyFilePath"),
+					Key(keyFilePathKey),
 				huh.NewInput().
 					Title("Password").
-					Key("pwd"),
+					Key(passwordKey),
 			),
 		),
 		spinner: s,
@@ -55,7 +67,7 @@ func (m LoginModel) Update(msg tea.Msg) (LoginModel, tea.Cmd) {
 
 	if m.form.State == huh.StateCompleted && !m.loading {
 		m.loading = true
-		return m, tea.Batch(cmd, m.spinner.Tick)
+		return m, tea.Batch(cmd, m.spinner.Tick, m.submitAuth())
 	}
 
 	if m.loading {
@@ -73,4 +85,14 @@ func (m LoginModel) View() string {
 	}
 
 	return m.form.View()
+}
+
+func (m *LoginModel) submitAuth() tea.Cmd {
+	return func() tea.Msg {
+		return LoginSubmitMsg{
+			DBPath:      m.form.GetString(dbPathKey),
+			KeyFilePath: m.form.GetString(keyFilePathKey),
+			Password:    m.form.GetString(passwordKey),
+		}
+	}
 }
