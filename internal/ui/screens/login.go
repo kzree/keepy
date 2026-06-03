@@ -44,7 +44,8 @@ func NewLoginModel() LoginModel {
 					Key(keyFilePathKey),
 				huh.NewInput().
 					Title("Password").
-					Key(passwordKey),
+					Key(passwordKey).
+					EchoMode(huh.EchoModePassword),
 			),
 		),
 		spinner: s,
