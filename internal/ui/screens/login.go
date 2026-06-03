@@ -2,32 +2,41 @@
 package screens
 
 import (
+	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
+	"charm.land/lipgloss/v2"
 )
 
+const authenticationText = "Authenticating..."
+
 type LoginModel struct {
-	form *huh.Form
+	form    *huh.Form
+	spinner spinner.Model
+	loading bool
 }
 
 func NewLoginModel() LoginModel {
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.BrightRed)
+
 	return LoginModel{
 		form: huh.NewForm(
 			huh.NewGroup(
 				huh.NewInput().
 					Title("Database path").
-					Key("dbPath").
-					Placeholder("/path/to/database.db"),
+					Key("dbPath"),
 				huh.NewInput().
 					Title("Key file path").
-					Key("keyFilePath").
-					Placeholder("/path/to/keyfile.key"),
+					Key("keyFilePath"),
 				huh.NewInput().
 					Title("Password").
-					Key("pwd").
-					Placeholder("Your password"),
+					Key("pwd"),
 			),
 		),
+		spinner: s,
+		loading: false,
 	}
 }
 
@@ -36,14 +45,32 @@ func (m LoginModel) Init() tea.Cmd {
 }
 
 func (m LoginModel) Update(msg tea.Msg) (LoginModel, tea.Cmd) {
+	var cmds []tea.Cmd
+
 	form, cmd := m.form.Update(msg)
 	if f, ok := form.(*huh.Form); ok {
 		m.form = f
 	}
+	cmds = append(cmds, cmd)
 
-	return m, cmd
+	if m.form.State == huh.StateCompleted && !m.loading {
+		m.loading = true
+		return m, tea.Batch(cmd, m.spinner.Tick)
+	}
+
+	if m.loading {
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 func (m LoginModel) View() string {
+	if m.loading {
+		return m.spinner.View() + authenticationText
+	}
+
 	return m.form.View()
 }
