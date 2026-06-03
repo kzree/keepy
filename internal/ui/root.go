@@ -24,6 +24,13 @@ func NewRootModel() RootModel {
 }
 
 func (r RootModel) Init() tea.Cmd {
+	switch r.activeView {
+	case screenLogin:
+		return r.login.Init()
+	case screenList:
+		return r.list.Init()
+	}
+
 	return nil
 }
 
@@ -42,13 +49,18 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				r.activeView = screenLogin
 			}
-		case "enter", "space":
-			return r, nil
 		}
 
 	case tea.WindowSizeMsg:
 		r.width = msg.Width
 		r.height = msg.Height
+	}
+
+	switch r.activeView {
+	case screenLogin:
+		login, cmd := r.login.Update(msg)
+		r.login = login
+		return r, cmd
 	}
 
 	return r, nil
@@ -57,7 +69,7 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (r *RootModel) renderCurrentView() string {
 	switch r.activeView {
 	case screenLogin:
-		return r.login.View().Content
+		return r.login.View()
 	case screenList:
 		return r.list.View().Content
 	}
