@@ -12,6 +12,9 @@ type model struct {
 	choices  []string
 	cursor   int
 	selected map[int]struct{}
+
+	width  int
+	height int
 }
 
 func NewRootModel() model {
@@ -28,7 +31,6 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
-
 		switch msg.String() {
 
 		case "ctrl+c", "q":
@@ -52,12 +54,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selected[m.cursor] = struct{}{}
 			}
 		}
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
 	}
 
 	return m, nil
 }
 
-func (m model) View() tea.View {
+func renderBody(m model) string {
 	var s strings.Builder
 
 	s.WriteString("What should we buy at the market?\n\n")
@@ -77,5 +83,10 @@ func (m model) View() tea.View {
 	}
 
 	s.WriteString("\nPress q to quit.\n")
-	return tea.NewView(s.String())
+	return s.String()
+}
+
+func (m model) View() tea.View {
+	body := renderBody(m)
+	return tea.NewView(renderFrame(body, m.width, m.height))
 }

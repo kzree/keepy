@@ -5,6 +5,7 @@ go 1.26.2
 require charm.land/bubbletea/v2 v2.0.7
 
 require (
+	charm.land/lipgloss/v2 v2.0.3 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20260525132238-948f4557a654 // indirect
 	github.com/charmbracelet/x/ansi v0.11.7 // indirect
