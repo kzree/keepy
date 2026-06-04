@@ -1,11 +1,28 @@
 package screens
 
-import tea "charm.land/bubbletea/v2"
+import (
+	"strings"
 
-type ListModel struct{}
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"kzree.com/keepy/internal/style"
+)
+
+type pane int
+
+const (
+	listPane pane = iota
+	detailPane
+)
+
+type ListModel struct {
+	activePane pane
+}
 
 func NewListModel() ListModel {
-	return ListModel{}
+	return ListModel{
+		activePane: listPane,
+	}
 }
 
 func (m ListModel) Init() tea.Cmd {
@@ -13,9 +30,42 @@ func (m ListModel) Init() tea.Cmd {
 }
 
 func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		switch msg.String() {
+		case "tab":
+			if m.activePane == listPane {
+				m.activePane = detailPane
+			} else {
+				m.activePane = listPane
+			}
+		}
+	}
 	return m, nil
 }
 
-func (m ListModel) View() tea.View {
-	return tea.NewView("List")
+func (m *ListModel) renderPane(isActive bool, width, height int, content string) string {
+	style := style.GetPaneStyle(isActive)
+	frameWidth, frameHeight := style.GetFrameSize()
+	return style.
+		Width(max(0, width-frameWidth)).
+		Height(max(0, height-frameHeight)).
+		Render(content)
+}
+
+func (m ListModel) View(contentWidth, contentHeight int) string {
+	gap := 1
+	availableWidth := max(0, contentWidth-gap)
+	leftWidth := availableWidth / 2
+	rightWidth := availableWidth - leftWidth - 2
+
+	left := m.renderPane(m.activePane == listPane, leftWidth, contentHeight, "List")
+	right := m.renderPane(m.activePane == detailPane, rightWidth, contentHeight, "Detail")
+
+	return lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		left,
+		strings.Repeat(" ", gap),
+		right,
+	)
 }

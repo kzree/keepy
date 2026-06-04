@@ -3,6 +3,7 @@ package ui
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"kzree.com/keepy/internal/style"
 	"kzree.com/keepy/internal/ui/screens"
 )
 
@@ -20,6 +21,7 @@ func NewRootModel() RootModel {
 	return RootModel{
 		activeView: screenLogin,
 		login:      screens.NewLoginModel(),
+		list:       screens.NewListModel(),
 	}
 }
 
@@ -61,23 +63,37 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		login, cmd := r.login.Update(msg)
 		r.login = login
 		return r, cmd
+	case screenList:
+		list, cmd := r.list.Update(msg)
+		r.list = list
+		return r, cmd
 	}
 
 	return r, nil
 }
 
-func (r *RootModel) renderCurrentView() string {
+func (r *RootModel) renderCurrentView(contentWidth, contentHeight int) string {
 	switch r.activeView {
 	case screenLogin:
 		return r.login.View()
 	case screenList:
-		return r.list.View().Content
+		return r.list.View(contentWidth, contentHeight)
 	}
 
 	return ""
 }
 
+func (r *RootModel) getContentSize() (int, int) {
+	frameW, frameH := style.Frame.GetFrameSize()
+
+	width := max(0, r.width-frameW)
+	height := max(0, r.height-frameH)
+	return width, height
+}
+
 func (r RootModel) View() tea.View {
-	body := r.renderCurrentView()
+	w, h := r.getContentSize()
+	body := r.renderCurrentView(w, h)
+
 	return tea.NewView(r.renderFrame(body))
 }
