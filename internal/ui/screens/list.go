@@ -15,6 +15,8 @@ const (
 	detailPane
 )
 
+const paneGap = 1
+
 type ListModel struct {
 	activePane pane
 }
@@ -52,17 +54,24 @@ func (m ListModel) renderPane(isActive bool, width, height int, content string) 
 		Render(content)
 }
 
-func (m ListModel) View(contentWidth, contentHeight int) string {
-	gap := 1
-	availableWidth := max(0, contentWidth-gap)
+func (m *ListModel) getPaneWidths(contentWidth int) (int, int) {
+	availableWidth := max(0, contentWidth-paneGap)
 	leftWidth := availableWidth / 2
 	rightWidth := availableWidth - leftWidth
+
+	return leftWidth, rightWidth
+}
+
+func (m ListModel) View(contentWidth, contentHeight int) string {
+	leftWidth, rightWidth := m.getPaneWidths(contentWidth)
+
 	left := m.renderPane(m.activePane == listPane, leftWidth, contentHeight, "List")
 	right := m.renderPane(m.activePane == detailPane, rightWidth, contentHeight, "Detail")
+
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		left,
-		strings.Repeat(" ", gap),
+		strings.Repeat(" ", paneGap),
 		right,
 	)
 }
