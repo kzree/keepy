@@ -44,12 +44,11 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 	return m, nil
 }
 
-func (m *ListModel) renderPane(isActive bool, width, height int, content string) string {
+func (m ListModel) renderPane(isActive bool, width, height int, content string) string {
 	style := style.GetPaneStyle(isActive)
-	frameWidth, frameHeight := style.GetFrameSize()
 	return style.
-		Width(max(0, width-frameWidth)).
-		Height(max(0, height-frameHeight)).
+		Width(max(0, width)).
+		Height(max(0, height)).
 		Render(content)
 }
 
@@ -57,11 +56,9 @@ func (m ListModel) View(contentWidth, contentHeight int) string {
 	gap := 1
 	availableWidth := max(0, contentWidth-gap)
 	leftWidth := availableWidth / 2
-	rightWidth := availableWidth - leftWidth - 2
-
+	rightWidth := availableWidth - leftWidth
 	left := m.renderPane(m.activePane == listPane, leftWidth, contentHeight, "List")
 	right := m.renderPane(m.activePane == detailPane, rightWidth, contentHeight, "Detail")
-
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		left,
