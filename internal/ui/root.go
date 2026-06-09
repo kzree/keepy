@@ -5,10 +5,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"kzree.com/keepy/internal/style"
 	"kzree.com/keepy/internal/ui/screens"
+	"kzree.com/keepy/internal/vault"
 )
 
 type RootModel struct {
 	activeView screen
+
+	db *vault.Vault
 
 	login screens.LoginModel
 	list  screens.ListModel
@@ -22,6 +25,7 @@ func NewRootModel() RootModel {
 		activeView: screenLogin,
 		login:      screens.NewLoginModel(),
 		list:       screens.NewListModel(),
+		db:         vault.New(),
 	}
 }
 
@@ -29,8 +33,6 @@ func (r RootModel) Init() tea.Cmd {
 	switch r.activeView {
 	case screenLogin:
 		return r.login.Init()
-	case screenList:
-		return r.list.Init()
 	}
 
 	return nil
@@ -38,6 +40,13 @@ func (r RootModel) Init() tea.Cmd {
 
 func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case screens.LoginSubmitMsg:
+		if err := r.db.Authenticate(msg.DBPath, msg.KeyFilePath, msg.Password, msg.KeyFilePath != ""); err != nil {
+			return r, nil
+		}
+		r.list.SetEntries(r.db.GetEntriesFlat())
+		r.activeView = screenList
+		return r, r.list.Init()
 	case tea.KeyPressMsg:
 		switch msg.String() {
 

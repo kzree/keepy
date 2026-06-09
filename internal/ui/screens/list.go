@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"kzree.com/keepy/internal/style"
+	"kzree.com/keepy/internal/vault"
 )
 
 type pane int
@@ -53,7 +54,7 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 			}
 		case "c":
 			if m.activePane == listPane {
-				entry := m.table.SelectedRow()[2] // Hacky af right now
+				entry := m.table.SelectedRow()[3] // Hacky af right now
 				clipboard.Write(clipboard.FmtText, []byte(entry))
 			}
 		}
@@ -65,23 +66,34 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 	return m, cmd
 }
 
+func (m *ListModel) SetEntries(entries []vault.Entry) {
+	rows := make([]table.Row, 0, len(entries))
+	for _, entry := range entries {
+		rows = append(rows, table.Row{
+			entry.Title,
+			entry.URL,
+			entry.Username,
+			entry.Password,
+		})
+	}
+	m.table.SetRows(rows)
+}
+
 func createEntryTable() table.Model {
 	columns := []table.Column{
+		{Title: "Title", Width: 20},
 		{Title: "URL", Width: 20},
 		{Title: "Email", Width: 20},
 		{Title: "pwd", Width: 0},
 	}
 
-	rows := []table.Row{
-		{"https://example1.com", "example@gmail.com", "super-secret-pwd1"},
-		{"https://example2.com", "example@gmail.com", "super-secret-pwd2"},
-	}
+	rows := []table.Row{}
 
 	t := table.New(
 		table.WithColumns(columns),
 		table.WithRows(rows),
 		table.WithFocused(true),
-		table.WithHeight(7),
+		table.WithHeight(42),
 		table.WithWidth(42),
 	)
 
