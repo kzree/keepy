@@ -3,6 +3,8 @@ package screens
 import (
 	"strings"
 
+	"golang.design/x/clipboard"
+
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -24,6 +26,11 @@ type ListModel struct {
 }
 
 func NewListModel() ListModel {
+	err := clipboard.Init()
+	if err != nil {
+		panic("Failed to initialize clipboard: " + err.Error())
+	}
+
 	return ListModel{
 		activePane: listPane,
 		table:      createEntryTable(),
@@ -44,6 +51,11 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 			} else {
 				m.activePane = listPane
 			}
+		case "c":
+			if m.activePane == listPane {
+				entry := m.table.SelectedRow()[2] // Hacky af right now
+				clipboard.Write(clipboard.FmtText, []byte(entry))
+			}
 		}
 	}
 
@@ -56,12 +68,13 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 func createEntryTable() table.Model {
 	columns := []table.Column{
 		{Title: "URL", Width: 20},
-		{Title: "email", Width: 20},
+		{Title: "Email", Width: 20},
+		{Title: "pwd", Width: 0},
 	}
 
 	rows := []table.Row{
-		{"https://example.com", "example@gmail.com"},
-		{"https://example.com", "example@gmail.com"},
+		{"https://example1.com", "example@gmail.com", "super-secret-pwd1"},
+		{"https://example2.com", "example@gmail.com", "super-secret-pwd2"},
 	}
 
 	t := table.New(
