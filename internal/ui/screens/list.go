@@ -54,10 +54,20 @@ func (m ListModel) renderPane(isActive bool, width, height int, content string) 
 		Render(content)
 }
 
+func (m *ListModel) getWidth(availableWidth int, isActive bool) int {
+	third := availableWidth / 3
+
+	if isActive {
+		return third * 2
+	}
+
+	return third
+}
+
 func (m *ListModel) getPaneWidths(contentWidth int) (int, int) {
 	availableWidth := max(0, contentWidth-paneGap)
-	leftWidth := availableWidth / 2
-	rightWidth := availableWidth - leftWidth
+	leftWidth := m.getWidth(availableWidth, m.activePane == listPane)
+	rightWidth := m.getWidth(availableWidth, m.activePane == detailPane)
 
 	return leftWidth, rightWidth
 }
