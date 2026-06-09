@@ -3,6 +3,7 @@ package screens
 import (
 	"strings"
 
+	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"kzree.com/keepy/internal/style"
@@ -19,11 +20,13 @@ const paneGap = 1
 
 type ListModel struct {
 	activePane pane
+	table      table.Model
 }
 
 func NewListModel() ListModel {
 	return ListModel{
 		activePane: listPane,
+		table:      createEntryTable(),
 	}
 }
 
@@ -43,7 +46,33 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 			}
 		}
 	}
-	return m, nil
+
+	t, cmd := m.table.Update(msg)
+	m.table = t
+
+	return m, cmd
+}
+
+func createEntryTable() table.Model {
+	columns := []table.Column{
+		{Title: "URL", Width: 20},
+		{Title: "email", Width: 20},
+	}
+
+	rows := []table.Row{
+		{"https://example.com", "example@gmail.com"},
+		{"https://example.com", "example@gmail.com"},
+	}
+
+	t := table.New(
+		table.WithColumns(columns),
+		table.WithRows(rows),
+		table.WithFocused(true),
+		table.WithHeight(7),
+		table.WithWidth(42),
+	)
+
+	return t
 }
 
 func (m ListModel) renderPane(isActive bool, width, height int, content string) string {
@@ -75,7 +104,7 @@ func (m *ListModel) getPaneWidths(contentWidth int) (int, int) {
 func (m ListModel) View(contentWidth, contentHeight int) string {
 	leftWidth, rightWidth := m.getPaneWidths(contentWidth)
 
-	left := m.renderPane(m.activePane == listPane, leftWidth, contentHeight, "List")
+	left := m.renderPane(m.activePane == listPane, leftWidth, contentHeight, m.table.View())
 	right := m.renderPane(m.activePane == detailPane, rightWidth, contentHeight, "Detail")
 
 	return lipgloss.JoinHorizontal(

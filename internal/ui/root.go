@@ -44,8 +44,7 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return r, tea.Quit
 
-		case "up", "k":
-		case "down", "j":
+		case "z":
 			if r.activeView == screenLogin {
 				r.activeView = screenList
 			} else {
