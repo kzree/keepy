@@ -48,7 +48,9 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		service.SaveCredentials(&creds)
 
 		if err := r.db.Authenticate(msg.DBPath, msg.KeyFilePath, msg.Password, msg.KeyFilePath != ""); err != nil {
-			return r, nil
+			return r, func() tea.Msg {
+				return screens.AuthenticationFailedMsg{Error: err}
+			}
 		}
 		r.list.SetEntries(r.db.GetEntriesFlat())
 		r.activeView = screenList

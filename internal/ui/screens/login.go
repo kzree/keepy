@@ -23,10 +23,34 @@ type LoginSubmitMsg struct {
 	Password    string
 }
 
+type AuthenticationFailedMsg struct {
+	Error error
+}
+
 type LoginModel struct {
-	form    *huh.Form
-	spinner spinner.Model
-	loading bool
+	form             *huh.Form
+	spinner          spinner.Model
+	loading          bool
+	savedCredentials *service.Credentials
+}
+
+func newLoginForm(dbPath, keyFilePath string) *huh.Form {
+	return huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Database path").
+				Key(dbPathKey).
+				Value(&dbPath),
+			huh.NewInput().
+				Title("Key file path").
+				Key(keyFilePathKey).
+				Value(&keyFilePath),
+			huh.NewInput().
+				Title("Password").
+				Key(passwordKey).
+				EchoMode(huh.EchoModePassword),
+		),
+	)
 }
 
 func NewLoginModel() LoginModel {
@@ -37,24 +61,10 @@ func NewLoginModel() LoginModel {
 	creds, _ := service.LoadSavedCredentials()
 
 	return LoginModel{
-		form: huh.NewForm(
-			huh.NewGroup(
-				huh.NewInput().
-					Title("Database path").
-					Key(dbPathKey).
-					Value(&creds.DBPath),
-				huh.NewInput().
-					Title("Key file path").
-					Key(keyFilePathKey).
-					Value(&creds.KeyFilePath),
-				huh.NewInput().
-					Title("Password").
-					Key(passwordKey).
-					EchoMode(huh.EchoModePassword),
-			),
-		),
-		spinner: s,
-		loading: false,
+		form:             newLoginForm(creds.DBPath, creds.KeyFilePath),
+		spinner:          s,
+		loading:          false,
+		savedCredentials: creds,
 	}
 }
 
@@ -64,6 +74,13 @@ func (m LoginModel) Init() tea.Cmd {
 
 func (m LoginModel) Update(msg tea.Msg) (LoginModel, tea.Cmd) {
 	var cmds []tea.Cmd
+
+	switch msg.(type) {
+	case AuthenticationFailedMsg:
+		m.loading = false
+		m.form = newLoginForm(m.savedCredentials.DBPath, m.savedCredentials.KeyFilePath)
+		return m, m.form.Init()
+	}
 
 	form, cmd := m.form.Update(msg)
 	if f, ok := form.(*huh.Form); ok {
