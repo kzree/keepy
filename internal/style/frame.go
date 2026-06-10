@@ -6,7 +6,7 @@ import (
 )
 
 var Frame = lipgloss.NewStyle().
-	Border(lipgloss.RoundedBorder()).
-	BorderForeground(lipgloss.White).
-	Foreground(lipgloss.Color("15")).
-	Padding(1, 2)
+	Border(lipgloss.HiddenBorder()).
+	BorderForeground(lipgloss.Black).
+	Foreground(lipgloss.Black).
+	Padding(1, 1)
