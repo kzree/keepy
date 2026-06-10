@@ -41,6 +41,12 @@ func (r RootModel) Init() tea.Cmd {
 func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case screens.LoginSubmitMsg:
+		creds := service.Credentials{
+			DBPath:      msg.DBPath,
+			KeyFilePath: msg.KeyFilePath,
+		}
+		service.SaveCredentials(&creds)
+
 		if err := r.db.Authenticate(msg.DBPath, msg.KeyFilePath, msg.Password, msg.KeyFilePath != ""); err != nil {
 			return r, nil
 		}

@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
+	"kzree.com/keepy/internal/service"
 )
 
 const authenticationText = "Authenticating..."
@@ -33,15 +34,19 @@ func NewLoginModel() LoginModel {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.BrightRed)
 
+	creds, _ := service.LoadSavedCredentials()
+
 	return LoginModel{
 		form: huh.NewForm(
 			huh.NewGroup(
 				huh.NewInput().
 					Title("Database path").
-					Key(dbPathKey),
+					Key(dbPathKey).
+					Value(&creds.DBPath),
 				huh.NewInput().
 					Title("Key file path").
-					Key(keyFilePathKey),
+					Key(keyFilePathKey).
+					Value(&creds.KeyFilePath),
 				huh.NewInput().
 					Title("Password").
 					Key(passwordKey).
