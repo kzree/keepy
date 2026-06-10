@@ -8,8 +8,8 @@ import (
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
-	"kzree.com/keepy/internal/vault"
 )
 
 type pane int
@@ -66,7 +66,7 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 	return m, cmd
 }
 
-func (m *ListModel) SetEntries(entries []vault.Entry) {
+func (m *ListModel) SetEntries(entries []service.VaultEntry) {
 	rows := make([]table.Row, 0, len(entries))
 	for _, entry := range entries {
 		rows = append(rows, table.Row{

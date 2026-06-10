@@ -3,15 +3,15 @@ package ui
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
 	"kzree.com/keepy/internal/ui/screens"
-	"kzree.com/keepy/internal/vault"
 )
 
 type RootModel struct {
 	activeView screen
 
-	db *vault.Vault
+	db *service.Vault
 
 	login screens.LoginModel
 	list  screens.ListModel
@@ -25,7 +25,7 @@ func NewRootModel() RootModel {
 		activeView: screenLogin,
 		login:      screens.NewLoginModel(),
 		list:       screens.NewListModel(),
-		db:         vault.New(),
+		db:         service.NewVault(),
 	}
 }
 

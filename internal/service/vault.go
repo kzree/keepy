@@ -1,5 +1,5 @@
-// Package vault contains the code for communicating with keepass
-package vault
+// Package service contains the core business logic and data management of the application
+package service
 
 import (
 	"os"
@@ -8,7 +8,7 @@ import (
 	"kzree.com/keepy/internal/util"
 )
 
-type Entry struct {
+type VaultEntry struct {
 	Title    string
 	Username string
 	Password string
@@ -26,7 +26,7 @@ type Vault struct {
 	authError     *error
 }
 
-func New() *Vault {
+func NewVault() *Vault {
 	return &Vault{
 		dbPath:        "",
 		keyFilePath:   "",
@@ -60,17 +60,17 @@ func (v *Vault) Authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 	return nil
 }
 
-func (v *Vault) GetEntriesFlat() []Entry {
+func (v *Vault) GetEntriesFlat() []VaultEntry {
 	if !v.authenticated {
 		return nil
 	}
 
-	var entries []Entry
+	var entries []VaultEntry
 
 	for _, group := range v.db.Content.Root.Groups {
 		for _, subgroup := range group.Groups {
 			for _, entry := range subgroup.Entries {
-				entries = append(entries, Entry{
+				entries = append(entries, VaultEntry{
 					Title:    entry.GetTitle(),
 					Username: entry.GetContent("UserName"),
 					Password: entry.GetContent("Password"),
@@ -80,7 +80,7 @@ func (v *Vault) GetEntriesFlat() []Entry {
 		}
 
 		for _, entry := range group.Entries {
-			entries = append(entries, Entry{
+			entries = append(entries, VaultEntry{
 				Title:    entry.GetTitle(),
 				Username: entry.GetContent("UserName"),
 				Password: entry.GetContent("Password"),
