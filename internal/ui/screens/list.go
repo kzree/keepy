@@ -93,7 +93,7 @@ func createEntryTable() table.Model {
 		table.WithColumns(columns),
 		table.WithRows(rows),
 		table.WithFocused(true),
-		table.WithHeight(42),
+		table.WithHeight(1),
 		table.WithWidth(42),
 	)
 
@@ -128,6 +128,9 @@ func (m *ListModel) getPaneWidths(contentWidth int) (int, int) {
 
 func (m ListModel) View(contentWidth, contentHeight int) string {
 	leftWidth, rightWidth := m.getPaneWidths(contentWidth)
+	paneStyle := style.GetPaneStyle(m.activePane == listPane)
+	tableHeight := max(1, contentHeight-paneStyle.GetVerticalFrameSize())
+	m.table.SetHeight(tableHeight)
 
 	left := m.renderPane(m.activePane == listPane, leftWidth, contentHeight, m.table.View())
 	right := m.renderPane(m.activePane == detailPane, rightWidth, contentHeight, "Detail")

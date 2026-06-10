@@ -8,5 +8,4 @@ import (
 var Frame = lipgloss.NewStyle().
 	Border(lipgloss.HiddenBorder()).
 	BorderForeground(lipgloss.Black).
-	Foreground(lipgloss.Black).
-	Padding(1, 1)
+	Foreground(lipgloss.Black)
