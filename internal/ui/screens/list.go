@@ -10,20 +10,22 @@ import (
 	"charm.land/lipgloss/v2"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
+	"kzree.com/keepy/internal/util"
 )
 
 type pane int
 
 const (
 	listPane pane = iota
-	detailPane
+	createPane
 )
 
 const paneGap = 1
 
 type ListModel struct {
-	activePane pane
-	table      table.Model
+	showSidePane bool
+	activePane   pane
+	table        table.Model
 }
 
 func NewListModel() ListModel {
@@ -47,8 +49,12 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "tab":
+			if !m.showSidePane {
+				break
+			}
+
 			if m.activePane == listPane {
-				m.activePane = detailPane
+				m.activePane = createPane
 			} else {
 				m.activePane = listPane
 			}
@@ -85,7 +91,6 @@ func createEntryTable() table.Model {
 		{Title: "URL", Width: 20},
 		{Title: "Email", Width: 20},
 		{Title: "pwd", Width: 0},
-		{Title: "Group", Width: 10},
 	}
 
 	rows := []table.Row{}
@@ -109,20 +114,12 @@ func (m ListModel) renderPane(isActive bool, width, height int, content string) 
 		Render(content)
 }
 
-func (m *ListModel) getWidth(availableWidth int, isActive bool) int {
-	third := availableWidth / 3
-
-	if isActive {
-		return third * 2
-	}
-
-	return third
-}
-
 func (m *ListModel) getPaneWidths(contentWidth int) (int, int) {
 	availableWidth := max(0, contentWidth-paneGap)
-	leftWidth := m.getWidth(availableWidth, m.activePane == listPane)
-	rightWidth := m.getWidth(availableWidth, m.activePane == detailPane)
+	third := availableWidth / 3
+
+	leftWidth := util.Ternary(m.showSidePane, third*2, availableWidth)
+	rightWidth := third
 
 	return leftWidth, rightWidth
 }
@@ -137,7 +134,7 @@ func (m ListModel) View(contentWidth, contentHeight int) string {
 	_, rightWidth := m.getPaneWidths(contentWidth)
 
 	left := m.table.View()
-	right := m.renderPane(m.activePane == detailPane, rightWidth, contentHeight, "Detail")
+	right := util.Ternary(m.showSidePane, m.renderPane(m.activePane == createPane, rightWidth, contentHeight, "Detail"), "")
 
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,

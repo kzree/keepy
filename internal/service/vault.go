@@ -20,7 +20,6 @@ type VaultEntry struct {
 	Username string
 	Password string
 	URL      string
-	Group    string
 }
 
 type Vault struct {
@@ -83,7 +82,6 @@ func (v *Vault) GetEntriesFlat() []VaultEntry {
 					Username: entry.GetContent(UsernameKey),
 					Password: entry.GetContent(PasswordKey),
 					URL:      entry.GetContent(URLKey),
-					Group:    subgroup.Name,
 				})
 			}
 		}
@@ -94,7 +92,6 @@ func (v *Vault) GetEntriesFlat() []VaultEntry {
 				Username: entry.GetContent(UsernameKey),
 				Password: entry.GetContent(PasswordKey),
 				URL:      entry.GetContent(URLKey),
-				Group:    group.Name,
 			})
 		}
 	}
