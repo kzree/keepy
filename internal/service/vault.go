@@ -9,11 +9,18 @@ import (
 	"kzree.com/keepy/internal/util"
 )
 
+const (
+	UsernameKey = "UserName"
+	PasswordKey = "Password"
+	URLKey      = "URL"
+)
+
 type VaultEntry struct {
 	Title    string
 	Username string
 	Password string
 	URL      string
+	Group    string
 }
 
 type Vault struct {
@@ -73,9 +80,10 @@ func (v *Vault) GetEntriesFlat() []VaultEntry {
 			for _, entry := range subgroup.Entries {
 				entries = append(entries, VaultEntry{
 					Title:    entry.GetTitle(),
-					Username: entry.GetContent("UserName"),
-					Password: entry.GetContent("Password"),
-					URL:      entry.GetContent("URL"),
+					Username: entry.GetContent(UsernameKey),
+					Password: entry.GetContent(PasswordKey),
+					URL:      entry.GetContent(URLKey),
+					Group:    subgroup.Name,
 				})
 			}
 		}
@@ -83,9 +91,10 @@ func (v *Vault) GetEntriesFlat() []VaultEntry {
 		for _, entry := range group.Entries {
 			entries = append(entries, VaultEntry{
 				Title:    entry.GetTitle(),
-				Username: entry.GetContent("UserName"),
-				Password: entry.GetContent("Password"),
-				URL:      entry.GetContent("URL"),
+				Username: entry.GetContent(UsernameKey),
+				Password: entry.GetContent(PasswordKey),
+				URL:      entry.GetContent(URLKey),
+				Group:    group.Name,
 			})
 		}
 	}

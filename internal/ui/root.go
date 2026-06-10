@@ -60,16 +60,8 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return r, r.list.Init()
 	case tea.KeyPressMsg:
 		switch msg.String() {
-
 		case "ctrl+c", "q":
 			return r, tea.Quit
-
-		case "z":
-			if r.activeView == screenLogin {
-				r.activeView = screenList
-			} else {
-				r.activeView = screenLogin
-			}
 		}
 
 	case tea.WindowSizeMsg:

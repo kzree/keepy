@@ -85,6 +85,7 @@ func createEntryTable() table.Model {
 		{Title: "URL", Width: 20},
 		{Title: "Email", Width: 20},
 		{Title: "pwd", Width: 0},
+		{Title: "Group", Width: 10},
 	}
 
 	rows := []table.Row{}
