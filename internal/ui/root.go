@@ -53,6 +53,9 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		r.list.SetEntries(r.db.GetEntriesFlat())
+
+		w, h := r.getContentSize()
+		r.list.SetListTableSize(w, h)
 		r.activeView = screenList
 		return r, r.list.Init()
 	case tea.KeyPressMsg:
@@ -72,6 +75,8 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		r.width = msg.Width
 		r.height = msg.Height
+
+		r.list.SetListTableSize(r.width, r.height)
 	}
 
 	switch r.activeView {

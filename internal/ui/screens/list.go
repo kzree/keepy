@@ -126,13 +126,16 @@ func (m *ListModel) getPaneWidths(contentWidth int) (int, int) {
 	return leftWidth, rightWidth
 }
 
-func (m ListModel) View(contentWidth, contentHeight int) string {
-	leftWidth, rightWidth := m.getPaneWidths(contentWidth)
-	paneStyle := style.GetPaneStyle(m.activePane == listPane)
-	tableHeight := max(1, contentHeight-paneStyle.GetVerticalFrameSize())
-	m.table.SetHeight(tableHeight)
+func (m *ListModel) SetListTableSize(contentWidth, contentHeight int) {
+	leftWidth, _ := m.getPaneWidths(contentWidth)
+	m.table.SetWidth(leftWidth)
+	m.table.SetHeight(max(1, contentHeight))
+}
 
-	left := m.renderPane(m.activePane == listPane, leftWidth, contentHeight, m.table.View())
+func (m ListModel) View(contentWidth, contentHeight int) string {
+	_, rightWidth := m.getPaneWidths(contentWidth)
+
+	left := m.table.View()
 	right := m.renderPane(m.activePane == detailPane, rightWidth, contentHeight, "Detail")
 
 	return lipgloss.JoinHorizontal(
