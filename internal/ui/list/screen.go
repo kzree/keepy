@@ -3,6 +3,7 @@ package list
 
 import (
 	"strings"
+	"time"
 
 	"golang.design/x/clipboard"
 
@@ -16,6 +17,8 @@ import (
 
 type pane int
 
+const copyFlashDuration = 200 * time.Millisecond
+
 const (
 	listPane pane = iota
 	createPane
@@ -27,6 +30,7 @@ type ListModel struct {
 	showSidePane bool
 	activePane   pane
 	table        table.Model
+	copyFlashID  int
 }
 
 func NewListModel() ListModel {
@@ -47,6 +51,10 @@ func (m ListModel) Init() tea.Cmd {
 
 func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case copyFlashDoneMsg:
+		if msg.id == m.copyFlashID {
+			setSelectedStyle(&m.table, normalSelectedStyle())
+		}
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "tab":
@@ -61,8 +69,16 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 			}
 		case "c":
 			if m.activePane == listPane {
-				entry := m.table.SelectedRow()[3] // Hacky af right now
-				clipboard.Write(clipboard.FmtText, []byte(entry))
+				row := m.table.SelectedRow()
+				if len(row) <= 3 {
+					break
+				}
+				pwd := row[3] // TODO: this is very hacky, need to find a better way to identify entry password
+
+				clipboard.Write(clipboard.FmtText, []byte(pwd))
+				m.copyFlashID++
+				setSelectedStyle(&m.table, copiedSelectedStyle())
+				return m, clearCopyFlashCmd(m.copyFlashID)
 			}
 		}
 	}
@@ -86,31 +102,10 @@ func (m *ListModel) SetEntries(entries []service.VaultEntry) {
 	m.table.SetRows(rows)
 }
 
-func createEntryTable() table.Model {
-	columns := []table.Column{
-		{Title: "Title", Width: 20},
-		{Title: "URL", Width: 20},
-		{Title: "Email", Width: 20},
-		{Title: "pwd", Width: 0},
-	}
-
-	rows := []table.Row{}
-
-	t := table.New(
-		table.WithColumns(columns),
-		table.WithRows(rows),
-		table.WithFocused(true),
-		table.WithHeight(1),
-		table.WithWidth(42),
-	)
-
-	s := table.DefaultStyles()
-	s.Selected = s.Selected.
-		Foreground(lipgloss.BrightBlue).
-		Bold(true)
-	t.SetStyles(s)
-
-	return t
+func clearCopyFlashCmd(id int) tea.Cmd {
+	return tea.Tick(copyFlashDuration, func(time.Time) tea.Msg {
+		return copyFlashDoneMsg{id: id}
+	})
 }
 
 func (m ListModel) renderPane(isActive bool, width, height int, content string) string {
