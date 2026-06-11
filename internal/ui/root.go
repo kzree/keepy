@@ -5,7 +5,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
-	"kzree.com/keepy/internal/ui/screens"
+	"kzree.com/keepy/internal/ui/list"
+	"kzree.com/keepy/internal/ui/login"
 )
 
 type RootModel struct {
@@ -13,8 +14,8 @@ type RootModel struct {
 
 	db *service.Vault
 
-	login screens.LoginModel
-	list  screens.ListModel
+	login login.LoginModel
+	list  list.ListModel
 
 	width  int
 	height int
@@ -23,8 +24,8 @@ type RootModel struct {
 func NewRootModel() RootModel {
 	return RootModel{
 		activeView: screenLogin,
-		login:      screens.NewLoginModel(),
-		list:       screens.NewListModel(),
+		login:      login.NewLoginModel(),
+		list:       list.NewListModel(),
 		db:         service.NewVault(),
 	}
 }
@@ -40,7 +41,7 @@ func (r RootModel) Init() tea.Cmd {
 
 func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case screens.LoginSubmitMsg:
+	case login.LoginSubmitMsg:
 		creds := service.Credentials{
 			DBPath:      msg.DBPath,
 			KeyFilePath: msg.KeyFilePath,
@@ -49,7 +50,7 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if err := r.db.Authenticate(msg.DBPath, msg.KeyFilePath, msg.Password, msg.KeyFilePath != ""); err != nil {
 			return r, func() tea.Msg {
-				return screens.AuthenticationFailedMsg{Error: err}
+				return login.AuthenticationFailedMsg{Error: err}
 			}
 		}
 		r.list.SetEntries(r.db.GetEntriesFlat())

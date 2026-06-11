@@ -1,5 +1,5 @@
-// Package screens contains different screens for the application
-package screens
+// Package login implements the login screen with auth flow
+package login
 
 import (
 	"charm.land/bubbles/v2/spinner"
@@ -17,16 +17,6 @@ const (
 	keyFilePathKey = "keyFilePath"
 	passwordKey    = "pwd"
 )
-
-type LoginSubmitMsg struct {
-	DBPath      string
-	KeyFilePath string
-	Password    string
-}
-
-type AuthenticationFailedMsg struct {
-	Error error
-}
 
 type LoginModel struct {
 	form             *huh.Form

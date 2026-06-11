@@ -1,4 +1,5 @@
-package screens
+// Package list implements the screen for listing vault entries and showing details of a selected entry.
+package list
 
 import (
 	"strings"
