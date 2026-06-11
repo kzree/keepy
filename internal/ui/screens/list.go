@@ -103,6 +103,12 @@ func createEntryTable() table.Model {
 		table.WithWidth(42),
 	)
 
+	s := table.DefaultStyles()
+	s.Selected = s.Selected.
+		Foreground(lipgloss.BrightBlue).
+		Bold(true)
+	t.SetStyles(s)
+
 	return t
 }
 

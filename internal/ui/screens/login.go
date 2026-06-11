@@ -7,6 +7,7 @@ import (
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 	"kzree.com/keepy/internal/service"
+	"kzree.com/keepy/internal/style"
 )
 
 const authenticationText = "Authenticating..."
@@ -32,6 +33,7 @@ type LoginModel struct {
 	spinner          spinner.Model
 	loading          bool
 	savedCredentials *service.Credentials
+	authError        error
 }
 
 func newLoginForm(dbPath, keyFilePath string) *huh.Form {
@@ -75,10 +77,11 @@ func (m LoginModel) Init() tea.Cmd {
 func (m LoginModel) Update(msg tea.Msg) (LoginModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case AuthenticationFailedMsg:
 		m.loading = false
 		m.form = newLoginForm(m.savedCredentials.DBPath, m.savedCredentials.KeyFilePath)
+		m.authError = msg.Error
 		return m, m.form.Init()
 	}
 
@@ -107,7 +110,13 @@ func (m LoginModel) View() string {
 		return m.spinner.View() + authenticationText
 	}
 
-	return m.form.View()
+	body := m.form.View()
+
+	if m.authError != nil {
+		body += "\n" + style.ErrorText.Render(m.authError.Error())
+	}
+
+	return body
 }
 
 func (m *LoginModel) submitAuth() tea.Cmd {
