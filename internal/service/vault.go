@@ -4,6 +4,7 @@ package service
 import (
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/tobischo/gokeepasslib/v3"
 	"kzree.com/keepy/internal/util"
@@ -97,7 +98,7 @@ func (v *Vault) GetEntriesFlat() []VaultEntry {
 	}
 
 	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Title < entries[j].Title
+		return strings.ToLower(entries[i].Title) < strings.ToLower(entries[j].Title)
 	})
 
 	return entries
