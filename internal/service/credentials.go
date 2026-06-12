@@ -47,7 +47,7 @@ func LoadSavedCredentials() (*Credentials, error) {
 
 func SaveCredentials(creds *Credentials) error {
 	path := getAbsoluteConfigPath()
-	file, err := util.OpenOrCreateFile(path)
+	file, err := util.OpenOrCreateFileAndTruncate(path)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func SaveCredentials(creds *Credentials) error {
 
 	json, err := json.MarshalIndent(creds, "", "  ")
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	file.Write(json)
