@@ -31,7 +31,10 @@ func NewLoginModel() LoginModel {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.BrightRed)
 
-	creds, _ := service.LoadSavedCredentials()
+	creds, err := service.LoadSavedCredentials()
+	if err != nil || creds == nil {
+		creds = &service.Credentials{}
+	}
 
 	return LoginModel{
 		form:             newLoginForm(creds.DBPath, creds.KeyFilePath),

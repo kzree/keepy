@@ -27,7 +27,7 @@ func getAbsoluteConfigPath() string {
 
 func LoadSavedCredentials() (*Credentials, error) {
 	path := getAbsoluteConfigPath()
-	file, err := util.OpenOrCreateFileAll(path)
+	file, err := util.OpenOrCreateFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func LoadSavedCredentials() (*Credentials, error) {
 
 func SaveCredentials(creds *Credentials) error {
 	path := getAbsoluteConfigPath()
-	file, err := util.OpenOrCreateFileAll(path)
+	file, err := util.OpenOrCreateFile(path)
 	if err != nil {
 		return err
 	}

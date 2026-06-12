@@ -19,7 +19,7 @@ func PathFromHome(pathFromHome string) (string, error) {
 	return filepath.Join(home, pathFromHome), nil
 }
 
-func OpenOrCreateFileAll(path string) (*os.File, error) {
+func OpenOrCreateFile(path string) (*os.File, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}
