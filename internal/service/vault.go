@@ -51,7 +51,18 @@ func (v *Vault) Authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 	db := gokeepasslib.NewDatabase()
 
 	keyFile, _ := util.PathFromHome(keyFilePath)
-	db.Credentials, _ = gokeepasslib.NewPasswordAndKeyCredentials(password, keyFile)
+
+	if useKeyFile {
+		creds, err := gokeepasslib.NewPasswordAndKeyCredentials(password, keyFile)
+		if err != nil {
+			v.authenticated = false
+			v.authError = &err
+			return err
+		}
+		db.Credentials = creds
+	} else {
+		db.Credentials = gokeepasslib.NewPasswordCredentials(password)
+	}
 	_ = gokeepasslib.NewDecoder(file).Decode(db)
 
 	err := db.UnlockProtectedEntries()
