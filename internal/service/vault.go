@@ -83,34 +83,28 @@ func (v *Vault) GetEntriesFlat() []VaultEntry {
 	if !v.authenticated {
 		return nil
 	}
-
 	var entries []VaultEntry
-
 	for _, group := range v.db.Content.Root.Groups {
-		for _, subgroup := range group.Groups {
-			for _, entry := range subgroup.Entries {
-				entries = append(entries, VaultEntry{
-					Title:    entry.GetTitle(),
-					Username: entry.GetContent(UsernameKey),
-					Password: entry.GetContent(PasswordKey),
-					URL:      entry.GetContent(URLKey),
-				})
-			}
-		}
-
-		for _, entry := range group.Entries {
-			entries = append(entries, VaultEntry{
-				Title:    entry.GetTitle(),
-				Username: entry.GetContent(UsernameKey),
-				Password: entry.GetContent(PasswordKey),
-				URL:      entry.GetContent(URLKey),
-			})
-		}
+		entries = append(entries, collectEntries(group)...)
 	}
-
 	sort.Slice(entries, func(i, j int) bool {
 		return strings.ToLower(entries[i].Title) < strings.ToLower(entries[j].Title)
 	})
+	return entries
+}
 
+func collectEntries(group gokeepasslib.Group) []VaultEntry {
+	var entries []VaultEntry
+	for _, entry := range group.Entries {
+		entries = append(entries, VaultEntry{
+			Title:    entry.GetTitle(),
+			Username: entry.GetContent(UsernameKey),
+			Password: entry.GetContent(PasswordKey),
+			URL:      entry.GetContent(URLKey),
+		})
+	}
+	for _, subgroup := range group.Groups {
+		entries = append(entries, collectEntries(subgroup)...)
+	}
 	return entries
 }
