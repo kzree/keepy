@@ -2,7 +2,7 @@
 # DEVELOPMENT
 # ==================================================================================== #
 
-## run/api: run the cmd/api application
+## run/app: run the cmd/app application
 .PHONY: run/app
 run/app:
 	@go run ./cmd/app
