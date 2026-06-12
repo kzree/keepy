@@ -26,25 +26,6 @@ type LoginModel struct {
 	authError        error
 }
 
-func newLoginForm(dbPath, keyFilePath string) *huh.Form {
-	return huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Database path").
-				Key(dbPathKey).
-				Value(&dbPath),
-			huh.NewInput().
-				Title("Key file path").
-				Key(keyFilePathKey).
-				Value(&keyFilePath),
-			huh.NewInput().
-				Title("Password").
-				Key(passwordKey).
-				EchoMode(huh.EchoModePassword),
-		),
-	)
-}
-
 func NewLoginModel() LoginModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
