@@ -73,7 +73,7 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 				if len(row) <= 3 {
 					break
 				}
-				pwd := row[3] // TODO: this is very hacky, need to find a better way to identify entry password
+				pwd := row[4] // TODO: this is very hacky, need to find a better way to identify entry password
 
 				clipboard.Write(clipboard.FmtText, []byte(pwd))
 				m.copyFlashID++
@@ -96,6 +96,7 @@ func (m *ListModel) SetEntries(entries []service.VaultEntry) {
 			entry.Title,
 			entry.URL,
 			entry.Username,
+			entry.Group,
 			entry.Password,
 		})
 	}

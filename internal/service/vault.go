@@ -21,6 +21,7 @@ type VaultEntry struct {
 	Username string
 	Password string
 	URL      string
+	Group    string
 }
 
 type Vault struct {
@@ -101,6 +102,7 @@ func collectEntries(group gokeepasslib.Group) []VaultEntry {
 			Username: entry.GetContent(UsernameKey),
 			Password: entry.GetContent(PasswordKey),
 			URL:      entry.GetContent(URLKey),
+			Group:    group.Name,
 		})
 	}
 	for _, subgroup := range group.Groups {
