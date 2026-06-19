@@ -5,8 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.design/x/clipboard"
-
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -31,14 +29,10 @@ type ListModel struct {
 	activePane   pane
 	table        table.Model
 	copyFlashID  int
+	entries      []service.VaultEntry
 }
 
 func NewListModel() ListModel {
-	err := clipboard.Init()
-	if err != nil {
-		panic("Failed to initialize clipboard: " + err.Error())
-	}
-
 	return ListModel{
 		activePane: listPane,
 		table:      createEntryTable(),
@@ -55,6 +49,10 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 		if msg.id == m.copyFlashID {
 			setSelectedStyle(&m.table, normalSelectedStyle())
 		}
+	case CopyPasswordSuccessMsg:
+		m.copyFlashID++
+		setSelectedStyle(&m.table, copiedSelectedStyle())
+		return m, clearCopyFlashCmd(m.copyFlashID)
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "tab":
@@ -69,16 +67,17 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 			}
 		case "c":
 			if m.activePane == listPane {
-				row := m.table.SelectedRow()
-				if len(row) <= 3 {
+				idx := m.table.Cursor()
+				if idx < 0 || idx >= len(m.entries) {
 					break
 				}
-				pwd := row[4] // TODO: this is very hacky, need to find a better way to identify entry password
+				entry := m.entries[idx]
 
-				clipboard.Write(clipboard.FmtText, []byte(pwd))
-				m.copyFlashID++
-				setSelectedStyle(&m.table, copiedSelectedStyle())
-				return m, clearCopyFlashCmd(m.copyFlashID)
+				return m, func() tea.Msg {
+					return CopyPasswordRequestMsg{
+						entry.ID,
+					}
+				}
 			}
 		}
 	}
@@ -90,6 +89,7 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 }
 
 func (m *ListModel) SetEntries(entries []service.VaultEntry) {
+	m.entries = entries
 	rows := make([]table.Row, 0, len(entries))
 	for _, entry := range entries {
 		rows = append(rows, table.Row{
@@ -97,7 +97,6 @@ func (m *ListModel) SetEntries(entries []service.VaultEntry) {
 			entry.URL,
 			entry.Username,
 			entry.Group,
-			entry.Password,
 		})
 	}
 	m.table.SetRows(rows)

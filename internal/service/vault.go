@@ -17,9 +17,9 @@ const (
 )
 
 type VaultEntry struct {
+	ID       gokeepasslib.UUID
 	Title    string
 	Username string
-	Password string
 	URL      string
 	Group    string
 }
@@ -94,13 +94,42 @@ func (v *Vault) GetEntriesFlat() []VaultEntry {
 	return entries
 }
 
+func (v *Vault) GetEntryPassword(id gokeepasslib.UUID) (string, error) {
+	if !v.authenticated {
+		return "", nil
+	}
+
+	for _, group := range v.db.Content.Root.Groups {
+		password, found := findEntryPassword(group, id)
+		if found {
+			return password, nil
+		}
+	}
+	return "", nil
+}
+
+func findEntryPassword(group gokeepasslib.Group, id gokeepasslib.UUID) (string, bool) {
+	for _, entry := range group.Entries {
+		if entry.UUID.Compare(id) {
+			return entry.GetContent(PasswordKey), true
+		}
+	}
+	for _, subgroup := range group.Groups {
+		password, found := findEntryPassword(subgroup, id)
+		if found {
+			return password, true
+		}
+	}
+	return "", false
+}
+
 func collectEntries(group gokeepasslib.Group) []VaultEntry {
 	var entries []VaultEntry
 	for _, entry := range group.Entries {
 		entries = append(entries, VaultEntry{
+			ID:       entry.UUID,
 			Title:    entry.GetTitle(),
 			Username: entry.GetContent(UsernameKey),
-			Password: entry.GetContent(PasswordKey),
 			URL:      entry.GetContent(URLKey),
 			Group:    group.Name,
 		})

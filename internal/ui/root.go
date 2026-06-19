@@ -2,7 +2,10 @@
 package ui
 
 import (
+	"errors"
+
 	tea "charm.land/bubbletea/v2"
+	"golang.design/x/clipboard"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
 	"kzree.com/keepy/internal/ui/list"
@@ -31,6 +34,12 @@ func NewRootModel() RootModel {
 }
 
 func (r RootModel) Init() tea.Cmd {
+	err := clipboard.Init()
+	// TODO: better error handling
+	if err != nil {
+		panic("Failed to initialize clipboard: " + err.Error())
+	}
+
 	switch r.activeView {
 	case screenLogin:
 		return r.login.Init()
@@ -59,6 +68,36 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		r.list.SetListTableSize(w, h)
 		r.activeView = screenList
 		return r, r.list.Init()
+
+	case list.CopyPasswordRequestMsg:
+		pwd, err := r.db.GetEntryPassword(msg.ID)
+		if err != nil {
+			return r, func() tea.Msg {
+				return list.CopyPasswordFailureMsg{
+					Error: err,
+				}
+			}
+		}
+
+		if pwd == "" {
+			return r, func() tea.Msg {
+				return list.CopyPasswordFailureMsg{
+					Error: errors.New("password not found for entry"),
+				}
+			}
+		}
+
+		changed := clipboard.Write(clipboard.FmtText, []byte(pwd))
+		if changed == nil {
+			return r, func() tea.Msg {
+				return list.CopyPasswordFailureMsg{
+					Error: errors.New("failed to write password to clipboard"),
+				}
+			}
+		}
+		return r, func() tea.Msg {
+			return list.CopyPasswordSuccessMsg{}
+		}
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
