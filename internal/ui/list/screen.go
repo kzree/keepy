@@ -181,6 +181,7 @@ func (m *ListModel) FilterEntries(val string) {
 
 	m.filteredEntries = filtered
 	m.table.SetRows(entriesToRows(filtered))
+	m.table.SetCursor(0)
 }
 
 func clearCopyFlashCmd(id int) tea.Cmd {
