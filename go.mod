@@ -2,22 +2,28 @@ module kzree.com/keepy
 
 go 1.26.2
 
-require charm.land/bubbletea/v2 v2.0.7
+require (
+	charm.land/bubbletea/v2 v2.0.7
+	github.com/stretchr/testify v1.11.1
+)
 
 require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/ebitengine/purego v0.10.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/tobischo/argon2 v0.1.0 // indirect
 	golang.design/x/x11 v0.2.0 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/exp/shiny v0.0.0-20250606033433-dcc06ee1d476 // indirect
 	golang.org/x/image v0.28.0 // indirect
 	golang.org/x/mobile v0.0.0-20250606033058-a2a15c67f36f // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 require (
-	charm.land/bubbles/v2 v2.0.0 // indirect
-	charm.land/huh/v2 v2.0.3 // indirect
-	charm.land/lipgloss/v2 v2.0.3 // indirect
+	charm.land/bubbles/v2 v2.0.0
+	charm.land/huh/v2 v2.0.3
+	charm.land/lipgloss/v2 v2.0.3
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/catppuccin/go v0.2.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
