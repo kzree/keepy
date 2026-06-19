@@ -108,7 +108,9 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		r.width = msg.Width
 		r.height = msg.Height
 
-		r.list.SetListTableSize(r.width, r.height)
+		w, h := r.getContentSize()
+
+		r.list.SetListTableSize(w, h)
 	}
 
 	switch r.activeView {

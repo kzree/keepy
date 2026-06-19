@@ -22,6 +22,10 @@ func createEntryTable() table.Model {
 		table.WithHeight(1),
 		table.WithWidth(42),
 	)
+	keys := table.DefaultKeyMap()
+	keys.PageUp.SetKeys("pgup")
+	keys.PageDown.SetKeys("pgdown")
+	t.KeyMap = keys
 
 	setSelectedStyle(&t, normalSelectedStyle())
 

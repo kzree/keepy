@@ -12,3 +12,4 @@ Keepass database TUI powered by Go and [Bubble Tea](https://github.com/charmbrac
 - [ ] Key hints
 - [ ] Proper error handling
 - [ ] Tests
+- [ ] Responsive TUI

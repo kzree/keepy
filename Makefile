@@ -6,3 +6,8 @@
 .PHONY: run/app
 run/app:
 	@go run ./cmd/app
+
+## test: run all tests
+.PHONY: test
+test:
+	@go test ./...
