@@ -15,7 +15,7 @@ import (
 
 type pane int
 
-const copyFlashDuration = 200 * time.Millisecond
+const copyFlashDuration = 100 * time.Millisecond
 
 const (
 	listPane pane = iota
