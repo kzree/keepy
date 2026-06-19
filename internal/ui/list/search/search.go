@@ -13,6 +13,8 @@ type SearchModel struct {
 	value string
 }
 
+type ClearSearchMsg struct{}
+
 func NewSearchModel() SearchModel {
 	input := textinput.New()
 	input.Focus()
@@ -28,6 +30,12 @@ func (m SearchModel) Init() tea.Cmd {
 
 func (m SearchModel) Update(msg tea.Msg) (SearchModel, tea.Cmd) {
 	var cmd tea.Cmd
+
+	switch msg.(type) {
+	case ClearSearchMsg:
+		m.input.SetValue("")
+		m.value = ""
+	}
 	m.input, cmd = m.input.Update(msg)
 	m.value = m.input.Value()
 

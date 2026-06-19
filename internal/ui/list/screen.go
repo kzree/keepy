@@ -99,6 +99,14 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 					}
 				}
 			}
+		case "x":
+			if !m.showSearch {
+				s, cmd := m.search.Update(search.ClearSearchMsg{})
+				m.search = s
+				m.FilterEntries("")
+				return m, cmd
+
+			}
 		case "f":
 			if !m.showSearch {
 				m.showSearch = true
