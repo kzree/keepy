@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/tobischo/gokeepasslib/v3"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
 	"kzree.com/keepy/internal/ui/list/search"
@@ -179,9 +180,23 @@ func (m *ListModel) FilterEntries(val string) {
 		}
 	})
 
+	currentCursor := m.table.Cursor()
+	var selected gokeepasslib.UUID
+
+	if currentCursor >= 0 && currentCursor < len(m.filteredEntries) {
+		selected = m.filteredEntries[currentCursor].ID
+	}
+
 	m.filteredEntries = filtered
 	m.table.SetRows(entriesToRows(filtered))
 	m.table.SetCursor(0)
+
+	for i, entry := range m.filteredEntries {
+		if entry.ID == selected {
+			m.table.SetCursor(i)
+			break
+		}
+	}
 }
 
 func clearCopyFlashCmd(id int) tea.Cmd {
