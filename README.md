@@ -4,7 +4,7 @@ Keepass database TUI powered by Go and [Bubble Tea](https://github.com/charmbrac
 
 ## Todo for v1.0
 
-- [ ] Search
+- [x] Search
 - [ ] Create new entry
 - [ ] Edit new entry
 - [ ] Login redesign, both UI and UX
