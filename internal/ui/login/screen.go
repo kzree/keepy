@@ -53,10 +53,7 @@ func (m LoginModel) Update(msg tea.Msg) (LoginModel, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case AuthenticationFailedMsg:
-		m.loading = false
-		m.form = newLoginForm(m.savedCredentials.DBPath, m.savedCredentials.KeyFilePath)
-		m.authError = msg.Error
-		return m, m.form.Init()
+		return m.handleAuthenticationFailedMsg(msg)
 	}
 
 	form, cmd := m.form.Update(msg)

@@ -67,72 +67,21 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case copyFlashDoneMsg:
-		if msg.id == m.copyFlashID {
-			setSelectedStyle(&m.table, normalSelectedStyle())
-		}
+		return m.handleCopyFlashDoneMsg(msg)
 	case CopyPasswordSuccessMsg:
-		m.copyFlashID++
-		setSelectedStyle(&m.table, copiedSelectedStyle())
-		return m, clearCopyFlashCmd(m.copyFlashID)
+		return m.handleCopyPasswordSuccessMsg()
 	case tea.KeyPressMsg:
 		switch msg.String() {
-		case "tab":
-			if !m.showSidePane {
-				break
-			}
-
-			if m.activePane == listPane {
-				m.activePane = createPane
-			} else {
-				m.activePane = listPane
-			}
 		case "c":
-			if m.showSearch {
-				break
-			}
-			if m.activePane == listPane {
-				idx := m.table.Cursor()
-				if idx < 0 || idx >= len(m.entries) {
-					break
-				}
-				entry := m.entries[idx]
-
-				return m, func() tea.Msg {
-					return CopyPasswordRequestMsg{
-						entry.ID,
-					}
-				}
-			}
+			return m.handleCopyEntry()
 		case "n":
-			if m.showSearch {
-				break
-			}
-
-			m.showSidePane = true
-			m.activePane = createPane
-			m.resizeTable()
-			return m, nil
+			return m.handleOpenNewEntryForm()
 		case "x":
-			if m.showSearch {
-				break
-			}
-
-			s, cmd := m.search.Update(search.ClearSearchMsg{})
-			m.search = s
-			m.FilterEntries("")
-			return m, cmd
+			return m.handleClearFilter()
 		case "f":
-			if !m.showSearch {
-				m.showSearch = true
-				m.resizeTable()
-			}
-			return m, nil
+			return m.handleShowSearch()
 		case "esc":
-			if m.showSearch {
-				m.showSearch = false
-				m.resizeTable()
-			}
-
+			return m.handleCloseSearch()
 		}
 	}
 
