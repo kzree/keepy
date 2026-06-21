@@ -12,6 +12,7 @@ import (
 	"github.com/tobischo/gokeepasslib/v3"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
+	"kzree.com/keepy/internal/ui/list/entryform"
 	"kzree.com/keepy/internal/ui/list/search"
 	"kzree.com/keepy/internal/util"
 )
@@ -42,7 +43,8 @@ type ListModel struct {
 	width  int
 	height int
 
-	search search.SearchModel
+	search    search.SearchModel
+	entryForm entryform.EntryFormModel
 }
 
 func NewListModel() ListModel {
@@ -52,11 +54,12 @@ func NewListModel() ListModel {
 		activePane:   listPane,
 		table:        createEntryTable(),
 		search:       search.NewSearchModel(),
+		entryForm:    entryform.NewEntryFormModel(),
 	}
 }
 
 func (m ListModel) Init() tea.Cmd {
-	return nil
+	return m.entryForm.Init()
 }
 
 func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
@@ -100,14 +103,24 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 					}
 				}
 			}
-		case "x":
-			if !m.showSearch {
-				s, cmd := m.search.Update(search.ClearSearchMsg{})
-				m.search = s
-				m.FilterEntries("")
-				return m, cmd
-
+		case "n":
+			if m.showSearch {
+				break
 			}
+
+			m.showSidePane = true
+			m.activePane = createPane
+			m.resizeTable()
+			return m, nil
+		case "x":
+			if m.showSearch {
+				break
+			}
+
+			s, cmd := m.search.Update(search.ClearSearchMsg{})
+			m.search = s
+			m.FilterEntries("")
+			return m, cmd
 		case "f":
 			if !m.showSearch {
 				m.showSearch = true
@@ -132,12 +145,15 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 		}
 
 		cmds = append(cmds, cmd)
+	} else if m.showSidePane && m.activePane == createPane {
+		entryForm, cmd := m.entryForm.Update(msg)
+		m.entryForm = entryForm
+		cmds = append(cmds, cmd)
 	} else {
 		t, cmd := m.table.Update(msg)
 		m.table = t
 		cmds = append(cmds, cmd)
 	}
-
 	return m, tea.Batch(cmds...)
 }
 
@@ -207,9 +223,10 @@ func clearCopyFlashCmd(id int) tea.Cmd {
 
 func (m ListModel) renderPane(isActive bool, width, height int, content string) string {
 	style := style.GetPaneStyle(isActive)
+	frameW, frameH := style.GetFrameSize()
 	return style.
-		Width(max(0, width)).
-		Height(max(0, height)).
+		Width(max(0, width-frameW)).
+		Height(max(0, height-frameH)).
 		Render(content)
 }
 
@@ -223,6 +240,15 @@ func (m *ListModel) getPaneWidths(contentWidth int) (int, int) {
 	return leftWidth, rightWidth
 }
 
+func (m *ListModel) resizeEntryForm(rightWidth int) {
+	paneStyle := style.GetPaneStyle(m.activePane == createPane)
+	frameW, frameH := paneStyle.GetFrameSize()
+	m.entryForm.SetSize(
+		max(0, rightWidth-frameW),
+		max(0, m.height-frameH),
+	)
+}
+
 func (m *ListModel) SetListTableSize(contentWidth, contentHeight int) {
 	m.width = contentWidth
 	m.height = contentHeight
@@ -231,10 +257,14 @@ func (m *ListModel) SetListTableSize(contentWidth, contentHeight int) {
 }
 
 func (m *ListModel) resizeTable() {
-	leftWidth, _ := m.getPaneWidths(m.width)
+	leftWidth, rightWidth := m.getPaneWidths(m.width)
 	baseHeight := max(1, m.height)
 	m.table.SetWidth(leftWidth)
 	m.table.SetHeight(util.Ternary(m.showSearch, baseHeight-searchHeight, baseHeight))
+
+	if m.showSidePane {
+		m.resizeEntryForm(rightWidth)
+	}
 }
 
 func (m ListModel) View(contentWidth, contentHeight int) string {
@@ -244,7 +274,7 @@ func (m ListModel) View(contentWidth, contentHeight int) string {
 	if m.showSearch {
 		left = lipgloss.JoinVertical(lipgloss.Left, m.search.View(), m.table.View())
 	}
-	right := util.Ternary(m.showSidePane, m.renderPane(m.activePane == createPane, rightWidth, contentHeight, "Detail"), "")
+	right := util.Ternary(m.showSidePane, m.renderPane(m.activePane == createPane, rightWidth, contentHeight, m.entryForm.View()), "")
 
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
