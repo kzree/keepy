@@ -2,11 +2,13 @@
 package service
 
 import (
+	"errors"
 	"os"
 	"sort"
 	"strings"
 
 	"github.com/tobischo/gokeepasslib/v3"
+	"github.com/tobischo/gokeepasslib/v3/wrappers"
 	"kzree.com/keepy/internal/util"
 )
 
@@ -22,6 +24,37 @@ type VaultEntry struct {
 	Username string
 	URL      string
 	Group    string
+}
+
+type NewVaultEntry struct {
+	Title    string
+	Username string
+	URL      string
+	Password string
+}
+
+func (e *NewVaultEntry) ToKeepassEntry() gokeepasslib.Entry {
+	newEntry := gokeepasslib.NewEntry()
+	newEntry.Values = append(newEntry.Values,
+		gokeepasslib.ValueData{
+			Key:   "Title",
+			Value: gokeepasslib.V{Content: e.Title},
+		},
+		gokeepasslib.ValueData{
+			Key:   UsernameKey,
+			Value: gokeepasslib.V{Content: e.Username},
+		},
+		gokeepasslib.ValueData{
+			Key:   PasswordKey,
+			Value: gokeepasslib.V{Content: e.Password, Protected: wrappers.NewBoolWrapper(true)},
+		},
+		gokeepasslib.ValueData{
+			Key:   URLKey,
+			Value: gokeepasslib.V{Content: e.URL},
+		},
+	)
+
+	return newEntry
 }
 
 type Vault struct {
@@ -76,8 +109,15 @@ func (v *Vault) Authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 	v.authenticated = true
 	v.authError = nil
 	v.db = db
+	v.dbPath = dbPath
+	v.keyFilePath = keyFilePath
+	v.password = password
 
 	return nil
+}
+
+func (v *Vault) ReAuthenticate() error {
+	return v.Authenticate(v.dbPath, v.keyFilePath, v.password, v.keyFilePath != "")
 }
 
 func (v *Vault) GetEntriesFlat() []VaultEntry {
@@ -106,6 +146,33 @@ func (v *Vault) GetEntryPassword(id gokeepasslib.UUID) (string, error) {
 		}
 	}
 	return "", nil
+}
+
+func (v *Vault) AddNewEntry(entry NewVaultEntry) error {
+	if !v.authenticated {
+		return errors.New("vault is not authenticated")
+	}
+
+	if len(v.db.Content.Root.Groups) == 0 {
+		return errors.New("no groups found to save entry to")
+	}
+
+	newEntry := entry.ToKeepassEntry()
+
+	v.db.Content.Root.Groups[0].Entries = append(v.db.Content.Root.Groups[0].Entries, newEntry)
+	return v.LockAndSave()
+}
+
+func (v *Vault) LockAndSave() error {
+	if err := v.db.LockProtectedEntries(); err != nil {
+		return err
+	}
+	file, err := os.Create(v.dbPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	return gokeepasslib.NewEncoder(file).Encode(v.db)
 }
 
 func findEntryPassword(group gokeepasslib.Group, id gokeepasslib.UUID) (string, bool) {
