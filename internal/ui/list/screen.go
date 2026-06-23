@@ -73,6 +73,10 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 	case entryform.CloseEntryForm:
 		return m.handleCloseNewEntryForm()
 	case tea.KeyPressMsg:
+		if m.showSidePane && m.activePane == createPane {
+			break
+		}
+
 		switch msg.String() {
 		case "c":
 			return m.handleCopyEntry()

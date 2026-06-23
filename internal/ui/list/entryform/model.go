@@ -42,8 +42,7 @@ func (m EntryFormModel) Update(msg tea.Msg) (EntryFormModel, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case SubmitSuccessMsg:
-		m.loading = false
-		m.form = newEntryForm(m.formValues)
+		m.reset()
 		return m, tea.Batch(func() tea.Msg {
 			return CloseEntryForm{}
 		}, m.form.Init())
@@ -54,6 +53,11 @@ func (m EntryFormModel) Update(msg tea.Msg) (EntryFormModel, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+g":
 			return m.handleGeneratePassword()
+		case "esc":
+			m.reset()
+			return m, func() tea.Msg {
+				return CloseEntryForm{}
+			}
 		}
 	}
 
@@ -100,6 +104,11 @@ func (m *EntryFormModel) SetSize(width, height int) {
 	if f, ok := form.(*huh.Form); ok {
 		m.form = f
 	}
+}
+
+func (m *EntryFormModel) reset() {
+	m.loading = false
+	m.form = newEntryForm(getEmptyFormValues())
 }
 
 func (m *EntryFormModel) submitEntry() tea.Cmd {
