@@ -11,5 +11,5 @@ func (m EntryFormModel) handleGeneratePassword() (EntryFormModel, tea.Cmd) {
 	m.formValues.Password = pwd
 	m.form = newEntryForm(m.formValues)
 
-	return m, nil
+	return m, m.form.Init()
 }
