@@ -3,13 +3,13 @@ package entryform
 import "kzree.com/keepy/internal/service"
 
 type SubmitEntryMsg struct {
-	entry service.NewVaultEntry
+	Entry service.NewVaultEntry
 }
 
 type SubmitSuccessMsg struct{}
 
 type SubmitFailedMsg struct {
-	error error
+	Error error
 }
 
 type CloseEntryForm struct{}

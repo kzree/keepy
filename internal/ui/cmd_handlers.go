@@ -73,6 +73,15 @@ func (r RootModel) handleWindowSizeMsg(msg tea.WindowSizeMsg) (RootModel, tea.Cm
 }
 
 func (r RootModel) handleSubmitEntry(msg entryform.SubmitEntryMsg) (RootModel, tea.Cmd) {
+	err := r.db.AddNewEntry(msg.Entry)
+	if err != nil {
+		return r, func() tea.Msg {
+			return entryform.SubmitFailedMsg{
+				Error: err,
+			}
+		}
+	}
+
 	return r, func() tea.Msg {
 		return entryform.SubmitSuccessMsg{}
 	}
