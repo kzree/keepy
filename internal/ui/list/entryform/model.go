@@ -16,6 +16,7 @@ type EntryFormModel struct {
 	loading     bool
 	spinner     spinner.Model
 	submitError error
+	formValues  *entryFormValues
 }
 
 func NewEntryFormModel() EntryFormModel {
@@ -23,10 +24,12 @@ func NewEntryFormModel() EntryFormModel {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.BrightRed)
 
+	values := getEmptyFormValues()
 	return EntryFormModel{
-		form:    newEntryForm(),
-		loading: false,
-		spinner: s,
+		formValues: values,
+		form:       newEntryForm(values),
+		loading:    false,
+		spinner:    s,
 	}
 }
 
@@ -40,13 +43,18 @@ func (m EntryFormModel) Update(msg tea.Msg) (EntryFormModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case SubmitSuccessMsg:
 		m.loading = false
-		m.form = newEntryForm()
+		m.form = newEntryForm(m.formValues)
 		return m, func() tea.Msg {
 			return CloseEntryForm{}
 		}
 	case SubmitFailedMsg:
 		m.loading = false
 		m.submitError = msg.Error
+	case tea.KeyPressMsg:
+		switch msg.String() {
+		case "ctrl+g":
+			return m.handleGeneratePassword()
+		}
 	}
 
 	form, cmd := m.form.Update(msg)
