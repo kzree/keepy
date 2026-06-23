@@ -7,6 +7,7 @@ import (
 	"golang.design/x/clipboard"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/ui/list"
+	"kzree.com/keepy/internal/ui/list/entryform"
 	"kzree.com/keepy/internal/ui/login"
 )
 
@@ -69,4 +70,10 @@ func (r RootModel) handleWindowSizeMsg(msg tea.WindowSizeMsg) (RootModel, tea.Cm
 	r.list.SetListTableSize(w, h)
 
 	return r, nil
+}
+
+func (r RootModel) handleSubmitEntry(msg entryform.SubmitEntryMsg) (RootModel, tea.Cmd) {
+	return r, func() tea.Msg {
+		return entryform.SubmitSuccessMsg{}
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
 	"kzree.com/keepy/internal/ui/list"
+	"kzree.com/keepy/internal/ui/list/entryform"
 	"kzree.com/keepy/internal/ui/login"
 )
 
@@ -57,6 +58,8 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if r, cmd, handled := r.handleKeyPressMsg(msg); handled {
 			return r, cmd
 		}
+	case entryform.SubmitEntryMsg:
+		return r.handleSubmitEntry(msg)
 
 	case tea.WindowSizeMsg:
 		return r.handleWindowSizeMsg(msg)

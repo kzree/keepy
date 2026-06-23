@@ -14,3 +14,9 @@ func (m ListModel) handleCopyPasswordSuccessMsg() (ListModel, tea.Cmd) {
 	setSelectedStyle(&m.table, copiedSelectedStyle())
 	return m, clearCopyFlashCmd(m.copyFlashID)
 }
+
+func (m ListModel) handleCloseNewEntryForm() (ListModel, tea.Cmd) {
+	m.activePane = listPane
+	m.showSidePane = false
+	return m, nil
+}
