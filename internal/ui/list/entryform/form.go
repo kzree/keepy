@@ -13,27 +13,47 @@ const (
 	urlKey      = "url"
 )
 
-func newEntryForm() *huh.Form {
+type entryFormValues struct {
+	Title    string
+	Username string
+	URL      string
+	Password string
+}
+
+func getEmptyFormValues() *entryFormValues {
+	return &entryFormValues{
+		Title:    "",
+		Username: "",
+		URL:      "",
+		Password: "",
+	}
+}
+
+func newEntryForm(values *entryFormValues) *huh.Form {
 	return huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Title").
 				Key(titleKey).
+				Value(&values.Title).
 				Prompt(": ").
 				Inline(true),
 			huh.NewInput().
 				Title("Username/Email").
 				Key(usernameKey).
+				Value(&values.Username).
 				Prompt(": ").
 				Inline(true),
 			huh.NewInput().
 				Title("URL").
 				Key(urlKey).
+				Value(&values.URL).
 				Prompt(": ").
 				Inline(true),
 			huh.NewInput().
 				Title("Password").
 				Key(passwordKey).
+				Value(&values.Password).
 				Prompt(": ").
 				Inline(true),
 		),
