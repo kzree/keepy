@@ -167,7 +167,8 @@ func (v *Vault) LockAndSave() error {
 	if err := v.db.LockProtectedEntries(); err != nil {
 		return err
 	}
-	file, err := os.Create(v.dbPath)
+	dbAbsPath, _ := util.PathFromHome(v.dbPath)
+	file, err := os.Create(dbAbsPath)
 	if err != nil {
 		return err
 	}

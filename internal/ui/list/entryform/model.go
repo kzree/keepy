@@ -6,14 +6,16 @@ import (
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 	"kzree.com/keepy/internal/service"
+	"kzree.com/keepy/internal/style"
 )
 
 const savingText = "Saving entry..."
 
 type EntryFormModel struct {
-	form    *huh.Form
-	loading bool
-	spinner spinner.Model
+	form        *huh.Form
+	loading     bool
+	spinner     spinner.Model
+	submitError error
 }
 
 func NewEntryFormModel() EntryFormModel {
@@ -35,13 +37,16 @@ func (m EntryFormModel) Init() tea.Cmd {
 func (m EntryFormModel) Update(msg tea.Msg) (EntryFormModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case SubmitSuccessMsg:
 		m.loading = false
 		m.form = newEntryForm()
 		return m, func() tea.Msg {
 			return CloseEntryForm{}
 		}
+	case SubmitFailedMsg:
+		m.loading = false
+		m.submitError = msg.Error
 	}
 
 	form, cmd := m.form.Update(msg)
@@ -69,6 +74,11 @@ func (m EntryFormModel) View() string {
 	}
 
 	body := m.form.View()
+
+	if m.submitError != nil {
+		body += "\n" + style.ErrorText.Render(m.submitError.Error())
+	}
+
 	return body
 }
 
