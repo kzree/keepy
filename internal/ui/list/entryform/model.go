@@ -44,9 +44,9 @@ func (m EntryFormModel) Update(msg tea.Msg) (EntryFormModel, tea.Cmd) {
 	case SubmitSuccessMsg:
 		m.loading = false
 		m.form = newEntryForm(m.formValues)
-		return m, func() tea.Msg {
+		return m, tea.Batch(func() tea.Msg {
 			return CloseEntryForm{}
-		}
+		}, m.form.Init())
 	case SubmitFailedMsg:
 		m.loading = false
 		m.submitError = msg.Error
