@@ -70,6 +70,8 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 		return m.handleCopyFlashDoneMsg(msg)
 	case CopyPasswordSuccessMsg:
 		return m.handleCopyPasswordSuccessMsg()
+	case entryform.CloseEntryForm:
+		return m.handleCloseNewEntryForm()
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "c":
