@@ -11,10 +11,10 @@ func (m ListModel) handleCopyEntry() (ListModel, tea.Cmd) {
 	}
 	if m.activePane == listPane {
 		idx := m.table.Cursor()
-		if idx < 0 || idx >= len(m.entries) {
+		if idx < 0 || idx >= len(m.filteredEntries) {
 			return m, nil
 		}
-		entry := m.entries[idx]
+		entry := m.filteredEntries[idx]
 
 		return m, func() tea.Msg {
 			return CopyPasswordRequestMsg{
