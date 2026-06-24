@@ -65,7 +65,7 @@ type Vault struct {
 	db *gokeepasslib.Database
 
 	authenticated bool
-	authError     *error
+	authError     error
 }
 
 func NewVault() *Vault {
@@ -78,32 +78,47 @@ func NewVault() *Vault {
 	}
 }
 
+func (v *Vault) handleAuthError(err error) error {
+	v.authenticated = false
+	v.authError = err
+	return err
+}
+
 func (v *Vault) Authenticate(dbPath, keyFilePath, password string, useKeyFile bool) error {
-	dbAbsPath, _ := util.PathFromHome(dbPath)
-	file, _ := os.Open(dbAbsPath)
+	dbAbsPath, err := util.PathFromHome(dbPath)
+	if err != nil {
+		return v.handleAuthError(err)
+	}
+	file, err := os.Open(dbAbsPath)
+	if err != nil {
+		return v.handleAuthError(err)
+	}
+	defer file.Close()
 
 	db := gokeepasslib.NewDatabase()
 
-	keyFile, _ := util.PathFromHome(keyFilePath)
-
 	if useKeyFile {
+		keyFile, err := util.PathFromHome(keyFilePath)
+		if err != nil {
+			return v.handleAuthError(err)
+		}
+
 		creds, err := gokeepasslib.NewPasswordAndKeyCredentials(password, keyFile)
 		if err != nil {
-			v.authenticated = false
-			v.authError = &err
-			return err
+			return v.handleAuthError(err)
 		}
 		db.Credentials = creds
 	} else {
 		db.Credentials = gokeepasslib.NewPasswordCredentials(password)
 	}
-	_ = gokeepasslib.NewDecoder(file).Decode(db)
-
-	err := db.UnlockProtectedEntries()
+	err = gokeepasslib.NewDecoder(file).Decode(db)
 	if err != nil {
-		v.authenticated = false
-		v.authError = &err
-		return err
+		return v.handleAuthError(err)
+	}
+
+	err = db.UnlockProtectedEntries()
+	if err != nil {
+		return v.handleAuthError(err)
 	}
 
 	v.authenticated = true
