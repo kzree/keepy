@@ -76,6 +76,14 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 		if m.showSidePane && m.activePane == createPane {
 			break
 		}
+		if m.showSearch {
+			switch msg.String() {
+			case "esc", "enter":
+				return m.handleCloseSearch()
+			}
+
+			break
+		}
 
 		switch msg.String() {
 		case "c":
@@ -86,8 +94,6 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 			return m.handleClearFilter()
 		case "f":
 			return m.handleShowSearch()
-		case "esc", "enter":
-			return m.handleCloseSearch()
 		}
 	}
 
