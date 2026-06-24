@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
+	"kzree.com/keepy/internal/util"
 )
 
 const authenticationText = "Authenticating..."
@@ -24,6 +25,8 @@ type LoginModel struct {
 	loading          bool
 	savedCredentials *service.Credentials
 	authError        error
+	showPathFields   bool
+	formValues       *loginFormValues
 }
 
 func NewLoginModel() LoginModel {
@@ -36,11 +39,21 @@ func NewLoginModel() LoginModel {
 		creds = &service.Credentials{}
 	}
 
+	showPathFields := creds.DBPath == ""
+
+	formValues := loginFormValues{
+		password:    "",
+		dbPath:      creds.DBPath,
+		keyFilePath: creds.KeyFilePath,
+	}
+
 	return LoginModel{
-		form:             newLoginForm(creds.DBPath, creds.KeyFilePath),
+		form:             util.Ternary(showPathFields, newLoginForm(&formValues), newShortLoginForm(&formValues)),
 		spinner:          s,
 		loading:          false,
 		savedCredentials: creds,
+		showPathFields:   showPathFields,
+		formValues:       &formValues,
 	}
 }
 
@@ -54,6 +67,11 @@ func (m LoginModel) Update(msg tea.Msg) (LoginModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case AuthenticationFailedMsg:
 		return m.handleAuthenticationFailedMsg(msg)
+	case tea.KeyPressMsg:
+		switch msg.String() {
+		case "ctrl+t":
+			return m.handleTogglePathFields()
+		}
 	}
 
 	form, cmd := m.form.Update(msg)
@@ -91,11 +109,13 @@ func (m LoginModel) View() string {
 }
 
 func (m *LoginModel) submitAuth() tea.Cmd {
+	msg := LoginSubmitMsg{
+		DBPath:      m.formValues.dbPath,
+		KeyFilePath: m.formValues.keyFilePath,
+		Password:    m.formValues.password,
+	}
+
 	return func() tea.Msg {
-		return LoginSubmitMsg{
-			DBPath:      m.form.GetString(dbPathKey),
-			KeyFilePath: m.form.GetString(keyFilePathKey),
-			Password:    m.form.GetString(passwordKey),
-		}
+		return msg
 	}
 }
