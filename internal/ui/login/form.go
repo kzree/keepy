@@ -9,6 +9,12 @@ func newLoginForm(dbPath, keyFilePath string) *huh.Form {
 	return huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
+				Title("Password").
+				Key(passwordKey).
+				Prompt(": ").
+				Inline(true).
+				EchoMode(huh.EchoModePassword),
+			huh.NewInput().
 				Title("Database path").
 				Key(dbPathKey).
 				Prompt(": ").
@@ -20,12 +26,6 @@ func newLoginForm(dbPath, keyFilePath string) *huh.Form {
 				Prompt(": ").
 				Inline(true).
 				Value(&keyFilePath),
-			huh.NewInput().
-				Title("Password").
-				Key(passwordKey).
-				Prompt(": ").
-				Inline(true).
-				EchoMode(huh.EchoModePassword),
 		),
 	).WithTheme(util.GetFormTheme())
 }
