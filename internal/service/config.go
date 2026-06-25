@@ -1,19 +1,24 @@
 package service
 
 import (
-	"encoding/json"
+	"os"
 
+	"github.com/pelletier/go-toml/v2"
 	"kzree.com/keepy/internal/util"
 )
 
 const (
 	configPathFromHome = ".config/keepy/"
-	configFileName     = "config.json"
+	configFileName     = "config.toml"
 )
 
 type Credentials struct {
-	DBPath      string `json:"dbPath"`
-	KeyFilePath string `json:"keyFilePath"`
+	DBPath      string `toml:"db_path"`
+	KeyFilePath string `toml:"key_file_path"`
+}
+
+type Config struct {
+	Credentials Credentials `toml:"credentials"`
 }
 
 func getAbsoluteConfigPath() string {
@@ -25,27 +30,22 @@ func getAbsoluteConfigPath() string {
 	return abs
 }
 
-func LoadSavedCredentials() (*Credentials, error) {
+func LoadConfig() (*Config, error) {
 	path := getAbsoluteConfigPath()
-	file, err := util.OpenOrCreateFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
-	var creds Credentials
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(&creds); err != nil {
-		if err.Error() == "EOF" {
-			return nil, nil
-		}
+	var cfg Config
+	if err := toml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
 
-	return &creds, nil
+	return &cfg, nil
 }
 
-func SaveCredentials(creds *Credentials) error {
+func SaveConfig(config *Config) error {
 	path := getAbsoluteConfigPath()
 	file, err := util.OpenOrCreateFileAndTruncate(path)
 	if err != nil {
@@ -53,12 +53,12 @@ func SaveCredentials(creds *Credentials) error {
 	}
 	defer file.Close()
 
-	json, err := json.MarshalIndent(creds, "", "  ")
+	toml, err := toml.Marshal(config)
 	if err != nil {
 		return err
 	}
 
-	file.Write(json)
+	file.Write(toml)
 
 	return nil
 }

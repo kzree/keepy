@@ -16,7 +16,11 @@ func (r RootModel) handleLoginSubmitMsg(msg login.LoginSubmitMsg) (RootModel, te
 		DBPath:      msg.DBPath,
 		KeyFilePath: msg.KeyFilePath,
 	}
-	service.SaveCredentials(&creds)
+
+	config := service.Config{
+		Credentials: creds,
+	}
+	service.SaveConfig(&config)
 
 	if err := r.db.Authenticate(msg.DBPath, msg.KeyFilePath, msg.Password, msg.KeyFilePath != ""); err != nil {
 		return r, func() tea.Msg {

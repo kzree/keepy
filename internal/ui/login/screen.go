@@ -34,10 +34,12 @@ func NewLoginModel() LoginModel {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.BrightRed)
 
-	creds, err := service.LoadSavedCredentials()
-	if err != nil || creds == nil {
-		creds = &service.Credentials{}
+	cfg, err := service.LoadConfig()
+	if err != nil || cfg == nil {
+		cfg = &service.Config{}
 	}
+
+	creds := &cfg.Credentials
 
 	showPathFields := creds.DBPath == ""
 
