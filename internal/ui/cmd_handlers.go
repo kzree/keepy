@@ -86,6 +86,7 @@ func (r RootModel) handleSubmitEntry(msg entryform.SubmitEntryMsg) (RootModel, t
 		}
 	}
 
+	r.list.SetEntries(r.db.GetEntriesFlat())
 	return r, func() tea.Msg {
 		return entryform.SubmitSuccessMsg{}
 	}
