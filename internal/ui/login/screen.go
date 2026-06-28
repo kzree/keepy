@@ -29,13 +29,12 @@ type LoginModel struct {
 	formValues       *loginFormValues
 }
 
-func NewLoginModel() LoginModel {
+func NewLoginModel(cfg *service.Config) LoginModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.BrightRed)
 
-	cfg, err := service.LoadConfig()
-	if err != nil || cfg == nil {
+	if cfg == nil {
 		cfg = &service.Config{}
 	}
 

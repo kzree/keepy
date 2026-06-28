@@ -14,7 +14,8 @@ import (
 type RootModel struct {
 	activeView screen
 
-	db *service.Vault
+	db  *service.Vault
+	cfg *service.Config
 
 	login login.LoginModel
 	list  list.ListModel
@@ -24,11 +25,18 @@ type RootModel struct {
 }
 
 func NewRootModel() RootModel {
+	// TODO: improve error handling
+	cfg, err := service.LoadConfig()
+	if err != nil {
+		panic("Failed to load config: " + err.Error())
+	}
+
 	return RootModel{
 		activeView: screenLogin,
-		login:      login.NewLoginModel(),
+		login:      login.NewLoginModel(cfg),
 		list:       list.NewListModel(),
 		db:         service.NewVault(),
+		cfg:        cfg,
 	}
 }
 
