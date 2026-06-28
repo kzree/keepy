@@ -17,17 +17,17 @@ func (r RootModel) handleLoginSubmitMsg(msg login.LoginSubmitMsg) (RootModel, te
 		KeyFilePath: msg.KeyFilePath,
 	}
 
-	config := service.Config{
-		Credentials: creds,
-	}
-	service.SaveConfig(&config)
-
 	if err := r.db.Authenticate(msg.DBPath, msg.KeyFilePath, msg.Password, msg.KeyFilePath != ""); err != nil {
 		return r, func() tea.Msg {
 			return login.AuthenticationFailedMsg{Error: err}
 		}
 	}
 	r.list.SetEntries(r.db.GetEntriesFlat())
+
+	config := service.Config{
+		Credentials: creds,
+	}
+	service.SaveConfig(&config)
 
 	w, h := r.getContentSize()
 	r.list.SetListTableSize(w, h)
