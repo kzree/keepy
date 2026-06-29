@@ -178,6 +178,39 @@ func (v *Vault) AddNewEntry(entry NewVaultEntry) error {
 	return v.LockAndSave()
 }
 
+func (v *Vault) DeleteEntry(id gokeepasslib.UUID) error {
+	if !v.authenticated {
+		return errors.New("vault is not authenticated")
+	}
+
+	for i := range v.db.Content.Root.Groups {
+		found := v.findAndDeleteEntryByID(&v.db.Content.Root.Groups[i], id)
+		if found {
+			return v.LockAndSave()
+		}
+	}
+
+	return errors.New("failed to find entry to delete")
+}
+
+func (v *Vault) findAndDeleteEntryByID(group *gokeepasslib.Group, id gokeepasslib.UUID) bool {
+	for i, entry := range group.Entries {
+		if entry.UUID.Compare(id) {
+			group.Entries = append(group.Entries[:i], group.Entries[i+1:]...)
+			return true
+		}
+	}
+
+	for i := range group.Groups {
+		found := v.findAndDeleteEntryByID(&group.Groups[i], id)
+		if found {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (v *Vault) LockAndSave() error {
 	if err := v.db.LockProtectedEntries(); err != nil {
 		return err

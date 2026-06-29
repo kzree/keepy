@@ -62,10 +62,15 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case list.CopyPasswordRequestMsg:
 		return r.handleCopyPasswordRequestMsg(msg)
+
+	case list.DeleteEntryRequestMsg:
+		return r.handleDeleteEntryRequestMsg(msg)
+
 	case tea.KeyPressMsg:
 		if r, cmd, handled := r.handleKeyPressMsg(msg); handled {
 			return r, cmd
 		}
+
 	case entryform.SubmitEntryMsg:
 		return r.handleSubmitEntry(msg)
 

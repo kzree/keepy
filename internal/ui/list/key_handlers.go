@@ -2,19 +2,27 @@ package list
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/ui/list/search"
 )
+
+func (m *ListModel) getEntryOnCursor() *service.VaultEntry {
+	idx := m.table.Cursor()
+	if idx < 0 || idx >= len(m.filteredEntries) {
+		return nil
+	}
+	return &m.filteredEntries[idx]
+}
 
 func (m ListModel) handleCopyEntry() (ListModel, tea.Cmd) {
 	if m.showSearch {
 		return m, nil
 	}
 	if m.activePane == listPane {
-		idx := m.table.Cursor()
-		if idx < 0 || idx >= len(m.filteredEntries) {
+		entry := m.getEntryOnCursor()
+		if entry == nil {
 			return m, nil
 		}
-		entry := m.filteredEntries[idx]
 
 		return m, func() tea.Msg {
 			return CopyPasswordRequestMsg{
@@ -60,6 +68,21 @@ func (m ListModel) handleCloseSearch() (ListModel, tea.Cmd) {
 	if m.showSearch {
 		m.showSearch = false
 		m.resizeTable()
+	}
+	return m, nil
+}
+
+func (m ListModel) handleDeleteEntry() (ListModel, tea.Cmd) {
+	if m.showSearch {
+		return m, nil
+	}
+	if m.activePane == listPane {
+		entry := m.getEntryOnCursor()
+		return m, func() tea.Msg {
+			return DeleteEntryRequestMsg{
+				ID: entry.ID,
+			}
+		}
 	}
 	return m, nil
 }

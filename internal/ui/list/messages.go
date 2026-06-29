@@ -15,3 +15,7 @@ type CopyPasswordSuccessMsg struct{}
 type CopyPasswordFailureMsg struct {
 	Error error
 }
+
+type DeleteEntryRequestMsg struct {
+	ID gokeepasslib.UUID
+}

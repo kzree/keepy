@@ -91,3 +91,13 @@ func (r RootModel) handleSubmitEntry(msg entryform.SubmitEntryMsg) (RootModel, t
 		return entryform.SubmitSuccessMsg{}
 	}
 }
+
+func (r RootModel) handleDeleteEntryRequestMsg(msg list.DeleteEntryRequestMsg) (RootModel, tea.Cmd) {
+	err := r.db.DeleteEntry(msg.ID)
+	if err != nil {
+		panic(err)
+	}
+	r.list.SetEntries(r.db.GetEntriesFlat())
+
+	return r, nil
+}

@@ -94,6 +94,8 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 			return m.handleClearFilter()
 		case "f":
 			return m.handleShowSearch()
+		case "d":
+			return m.handleDeleteEntry()
 		}
 	}
 
