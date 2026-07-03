@@ -44,6 +44,13 @@ Default keymap. Planned to be configurable in the config
 - [ ] Key hints
   - [ ] Modal with key hints
   - [ ] Configurable keybinds
+- [ ] i18n
 - [ ] Proper error handling
 - [ ] Tests
 - [ ] Responsive TUI
+
+## Post release roadmap
+
+- Cloud provider support
+  - [ ] Dropbox
+  - [ ] OneDrive
