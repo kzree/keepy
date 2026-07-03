@@ -6,21 +6,25 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"kzree.com/keepy/internal/textprovider"
+	"kzree.com/keepy/internal/textprovider/key"
 )
 
 type SearchModel struct {
 	input textinput.Model
 	value string
+	t     *textprovider.TextProvider
 }
 
 type ClearSearchMsg struct{}
 
-func NewSearchModel() SearchModel {
+func NewSearchModel(t *textprovider.TextProvider) SearchModel {
 	input := textinput.New()
 	input.Focus()
 
 	return SearchModel{
 		input: input,
+		t:     t,
 	}
 }
 
@@ -44,7 +48,7 @@ func (m SearchModel) Update(msg tea.Msg) (SearchModel, tea.Cmd) {
 
 func (m SearchModel) View() string {
 	return fmt.Sprintf(
-		" Search: %s\n",
+		m.t.Text(key.LabelSearch),
 		m.input.View(),
 	)
 }

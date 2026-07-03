@@ -2,6 +2,10 @@ package login
 
 import (
 	"charm.land/huh/v2"
+	"kzree.com/keepy/internal/textprovider"
+	"kzree.com/keepy/internal/textprovider/key"
+	"kzree.com/keepy/internal/textprovider/locale"
+	"kzree.com/keepy/internal/textprovider/namespace"
 	"kzree.com/keepy/internal/util"
 )
 
@@ -12,10 +16,12 @@ type loginFormValues struct {
 }
 
 func newShortLoginForm(v *loginFormValues) *huh.Form {
+	t := textprovider.New(locale.En, namespace.Login)
+
 	return huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
-				Title("Password").
+				Title(t.Text(key.LabelPassword)).
 				Key(passwordKey).
 				Prompt(": ").
 				Inline(true).
@@ -26,23 +32,25 @@ func newShortLoginForm(v *loginFormValues) *huh.Form {
 }
 
 func newLoginForm(v *loginFormValues) *huh.Form {
+	t := textprovider.New(locale.En, namespace.Login)
+
 	return huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
-				Title("Password").
+				Title(t.Text(key.LabelPassword)).
 				Key(passwordKey).
 				Prompt(": ").
 				Inline(true).
 				Value(&v.password).
 				EchoMode(huh.EchoModePassword),
 			huh.NewInput().
-				Title("Database path").
+				Title(t.Text(key.LabelDBPath)).
 				Key(dbPathKey).
 				Prompt(": ").
 				Inline(true).
 				Value(&v.dbPath),
 			huh.NewInput().
-				Title("Key file path").
+				Title(t.Text(key.LabelKeyFilePath)).
 				Key(keyFilePathKey).
 				Prompt(": ").
 				Inline(true).

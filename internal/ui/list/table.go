@@ -3,19 +3,21 @@ package list
 import (
 	"charm.land/bubbles/v2/table"
 	"charm.land/lipgloss/v2"
+	"kzree.com/keepy/internal/textprovider"
+	"kzree.com/keepy/internal/textprovider/key"
 )
 
-func createEntryTable() table.Model {
+func createEntryTable(t *textprovider.TextProvider) table.Model {
 	columns := []table.Column{
-		{Title: "Title", Width: 20},
-		{Title: "URL", Width: 20},
-		{Title: "Email", Width: 20},
-		{Title: "Group", Width: 20},
+		{Title: t.Text(key.ColumnTitle), Width: 20},
+		{Title: t.Text(key.ColumnURL), Width: 20},
+		{Title: t.Text(key.ColumnEmail), Width: 20},
+		{Title: t.Text(key.ColumnGroup), Width: 20},
 	}
 
 	rows := []table.Row{}
 
-	t := table.New(
+	tbl := table.New(
 		table.WithColumns(columns),
 		table.WithRows(rows),
 		table.WithFocused(true),
@@ -25,11 +27,11 @@ func createEntryTable() table.Model {
 	keys := table.DefaultKeyMap()
 	keys.PageUp.SetKeys("pgup")
 	keys.PageDown.SetKeys("pgdown")
-	t.KeyMap = keys
+	tbl.KeyMap = keys
 
-	setSelectedStyle(&t, normalSelectedStyle())
+	setSelectedStyle(&tbl, normalSelectedStyle())
 
-	return t
+	return tbl
 }
 
 func setSelectedStyle(t *table.Model, selected lipgloss.Style) {

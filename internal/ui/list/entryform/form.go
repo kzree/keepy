@@ -3,6 +3,10 @@ package entryform
 
 import (
 	"charm.land/huh/v2"
+	"kzree.com/keepy/internal/textprovider"
+	"kzree.com/keepy/internal/textprovider/key"
+	"kzree.com/keepy/internal/textprovider/locale"
+	"kzree.com/keepy/internal/textprovider/namespace"
 	"kzree.com/keepy/internal/util"
 )
 
@@ -30,28 +34,29 @@ func getEmptyFormValues() *entryFormValues {
 }
 
 func newEntryForm(values *entryFormValues) *huh.Form {
+	t := textprovider.New(locale.En, namespace.List)
 	return huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
-				Title("Title").
+				Title(t.Text(key.LabelTitle)).
 				Key(titleKey).
 				Value(&values.Title).
 				Prompt(": ").
 				Inline(true),
 			huh.NewInput().
-				Title("Username/Email").
+				Title(t.Text(key.LabelUsername)).
 				Key(usernameKey).
 				Value(&values.Username).
 				Prompt(": ").
 				Inline(true),
 			huh.NewInput().
-				Title("URL").
+				Title(t.Text(key.LabelURL)).
 				Key(urlKey).
 				Value(&values.URL).
 				Prompt(": ").
 				Inline(true),
 			huh.NewInput().
-				Title("Password").
+				Title(t.Text(key.LabelPassword)).
 				Key(passwordKey).
 				Value(&values.Password).
 				Prompt(": ").

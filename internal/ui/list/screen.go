@@ -12,6 +12,9 @@ import (
 	"github.com/tobischo/gokeepasslib/v3"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
+	"kzree.com/keepy/internal/textprovider"
+	"kzree.com/keepy/internal/textprovider/locale"
+	"kzree.com/keepy/internal/textprovider/namespace"
 	"kzree.com/keepy/internal/ui/list/entryform"
 	"kzree.com/keepy/internal/ui/list/search"
 	"kzree.com/keepy/internal/util"
@@ -40,6 +43,8 @@ type ListModel struct {
 	entries         []service.VaultEntry
 	filteredEntries []service.VaultEntry
 
+	t *textprovider.TextProvider
+
 	width  int
 	height int
 
@@ -48,13 +53,15 @@ type ListModel struct {
 }
 
 func NewListModel() ListModel {
+	t := textprovider.New(locale.En, namespace.List)
 	return ListModel{
 		showSearch:   false,
 		showSidePane: false,
 		activePane:   listPane,
-		table:        createEntryTable(),
-		search:       search.NewSearchModel(),
+		table:        createEntryTable(t),
+		search:       search.NewSearchModel(t),
 		entryForm:    entryform.NewEntryFormModel(),
+		t:            t,
 	}
 }
 
