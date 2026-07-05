@@ -17,8 +17,27 @@ type Credentials struct {
 	KeyFilePath string `toml:"key_file_path"`
 }
 
+type Preferences struct {
+	Locale string `toml:"locale"`
+}
+
 type Config struct {
+	Preferences Preferences `toml:"preferences"`
 	Credentials Credentials `toml:"credentials"`
+}
+
+func createDefaultConfig() error {
+	cfg := Config{
+		Preferences: Preferences{
+			Locale: "En",
+		},
+		Credentials: Credentials{
+			DBPath:      "",
+			KeyFilePath: "",
+		},
+	}
+
+	return SaveConfig(&cfg)
 }
 
 func getAbsoluteConfigPath() string {
@@ -34,7 +53,20 @@ func LoadConfig() (*Config, error) {
 	path := getAbsoluteConfigPath()
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+
+		cfg := Config{
+			Preferences: Preferences{Locale: "En"},
+			Credentials: Credentials{},
+		}
+
+		if err := SaveConfig(&cfg); err != nil {
+			return nil, err
+		}
+
+		return &cfg, nil
 	}
 
 	var cfg Config
