@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+
+commit_msg_file="$1"
+commit_msg="$(head -n 1 "$commit_msg_file")"
+pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-zA-Z0-9._-]+\))?!?: .+'
+
+case "$commit_msg" in
+	Merge\ *|Revert\ *|fixup!\ *|squash!\ *)
+		exit 0
+		;;
+esac
+
+if ! printf '%s\n' "$commit_msg" | grep -Eq "$pattern"; then
+	echo "Invalid commit message:"
+	echo "  $commit_msg"
+	echo
+	echo "Expected Conventional Commit format:"
+	echo "  type(scope): description"
+	echo
+	echo "Examples:"
+	echo "  feat(config): load default config"
+	echo "  fix(service): handle missing config"
+	echo "  test: add config loading coverage"
+	exit 1
+fi

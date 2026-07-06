@@ -12,6 +12,12 @@ run/app:
 test:
 	@go test ./...
 
+## install-hooks: configure git to use repository hooks
+.PHONY: install-hooks
+install-hooks:
+	@git config core.hooksPath .githooks
+	@chmod +x .githooks/pre-commit .githooks/commit-msg
+
 # ==================================================================================== #
 # BUILD
 # ==================================================================================== #

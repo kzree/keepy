@@ -1,0 +1,33 @@
+#!/bin/sh
+set -eu
+
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
+
+unformatted=""
+
+while IFS= read -r file; do
+	[ -n "$file" ] || continue
+
+	tmpfile="$tmpdir/$(basename "$file")"
+	git show ":$file" > "$tmpfile"
+
+	if [ -n "$(gofmt -l "$tmpfile")" ]; then
+		unformatted="${unformatted}${file}
+"
+	fi
+done <<EOF
+$(git diff --cached --name-only --diff-filter=ACMR -- '*.go')
+EOF
+
+if [ -n "$unformatted" ]; then
+	echo "Go files need formatting:"
+	printf '%s' "$unformatted"
+	echo
+	echo "Run: go fmt ./..."
+	exit 1
+fi
+
+echo "All files formatted"
+echo "Running tests..."
+make test
