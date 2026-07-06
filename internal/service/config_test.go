@@ -27,13 +27,26 @@ key_file_path = "~/vault.key"
 	assert.Equal(t, "~/vault.key", cfg.Credentials.KeyFilePath)
 }
 
-func TestLoadConfigReturnsErrorWhenConfigIsMissing(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+func TestLoadConfigCreatesDefaultConfigWhenConfigIsMissing(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	configPath := filepath.Join(home, configPathFromHome, configFileName)
 
 	cfg, err := LoadConfig()
 
-	require.Error(t, err)
-	assert.Nil(t, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	assert.Equal(t, "En", cfg.Preferences.Locale)
+	assert.Empty(t, cfg.Credentials.DBPath)
+	assert.Empty(t, cfg.Credentials.KeyFilePath)
+
+	raw, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `locale = 'En'`)
+
+	loaded, err := LoadConfig()
+	require.NoError(t, err)
+	assert.Equal(t, cfg, loaded)
 }
 
 func TestLoadConfigReturnsErrorForInvalidToml(t *testing.T) {
