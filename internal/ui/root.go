@@ -115,5 +115,7 @@ func (r RootModel) View() tea.View {
 	w, h := r.getContentSize()
 	body := r.renderCurrentView(w, h)
 
-	return tea.NewView(r.renderFrame(body))
+	view := tea.NewView(r.renderFrame(body))
+	view.AltScreen = true
+	return view
 }
