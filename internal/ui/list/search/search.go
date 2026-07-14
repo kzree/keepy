@@ -20,6 +20,7 @@ type ClearSearchMsg struct{}
 
 func NewSearchModel(t *textprovider.TextProvider) SearchModel {
 	input := textinput.New()
+	input.Prompt = ""
 	input.Focus()
 
 	return SearchModel{

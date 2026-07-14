@@ -16,4 +16,6 @@ const (
 	ColumnURL   = "COLUMN_URL"
 	ColumnEmail = "COLUMN_EMAIL"
 	ColumnGroup = "COLUMN_GROUP"
+
+	DeleteConfirmPrompt = "DELETE_CONFIRM_PROMPT"
 )

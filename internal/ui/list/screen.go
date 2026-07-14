@@ -15,6 +15,7 @@ import (
 	"kzree.com/keepy/internal/textprovider"
 	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/textprovider/namespace"
+	"kzree.com/keepy/internal/ui/common"
 	"kzree.com/keepy/internal/ui/list/entryform"
 	"kzree.com/keepy/internal/ui/list/search"
 	"kzree.com/keepy/internal/util"
@@ -31,17 +32,18 @@ const (
 
 const (
 	paneGap      = 1
-	searchHeight = 2
+	promptHeight = 2
 )
 
 type ListModel struct {
-	showSearch      bool
-	showSidePane    bool
-	activePane      pane
-	table           table.Model
-	copyFlashID     int
-	entries         []service.VaultEntry
-	filteredEntries []service.VaultEntry
+	showSearch       bool
+	showSidePane     bool
+	showDeletePrompt bool
+	activePane       pane
+	table            table.Model
+	copyFlashID      int
+	entries          []service.VaultEntry
+	filteredEntries  []service.VaultEntry
 
 	t *textprovider.TextProvider
 
@@ -50,6 +52,7 @@ type ListModel struct {
 
 	search    search.SearchModel
 	entryForm entryform.EntryFormModel
+	confirm   common.ConfirmPromptModel
 }
 
 func NewListModel() ListModel {
@@ -61,6 +64,7 @@ func NewListModel() ListModel {
 		table:        createEntryTable(t),
 		search:       search.NewSearchModel(t),
 		entryForm:    entryform.NewEntryFormModel(),
+		confirm:      common.NewConfirmPrompt(),
 		t:            t,
 	}
 }
@@ -79,6 +83,8 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 		return m.handleCopyPasswordSuccessMsg()
 	case entryform.CloseEntryForm:
 		return m.handleCloseNewEntryForm()
+	case common.CloseConfirmMsg:
+		return m.handleCloseDeletePrompt(msg)
 	case tea.KeyPressMsg:
 		if m.showSidePane && m.activePane == createPane {
 			break
@@ -92,17 +98,21 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 			break
 		}
 
-		switch msg.String() {
-		case "c":
-			return m.handleCopyEntry()
-		case "n":
-			return m.handleOpenNewEntryForm()
-		case "x":
-			return m.handleClearFilter()
-		case "f":
-			return m.handleShowSearch()
-		case "d":
-			return m.handleDeleteEntry()
+		disableInput := m.showSearch || m.showDeletePrompt || (m.showSidePane && m.activePane == createPane)
+
+		if !disableInput {
+			switch msg.String() {
+			case "c":
+				return m.handleCopyEntry()
+			case "n":
+				return m.handleOpenNewEntryForm()
+			case "x":
+				return m.handleClearFilter()
+			case "f":
+				return m.handleShowSearch()
+			case "d":
+				return m.handleOpenDeletePrompt()
+			}
 		}
 	}
 
@@ -114,6 +124,10 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 			m.FilterEntries(m.search.Value())
 		}
 
+		cmds = append(cmds, cmd)
+	} else if m.showDeletePrompt {
+		c, cmd := m.confirm.Update(msg)
+		m.confirm = c
 		cmds = append(cmds, cmd)
 	} else if m.showSidePane && m.activePane == createPane {
 		entryForm, cmd := m.entryForm.Update(msg)
@@ -230,7 +244,7 @@ func (m *ListModel) resizeTable() {
 	leftWidth, rightWidth := m.getPaneWidths(m.width)
 	baseHeight := max(1, m.height)
 	m.table.SetWidth(leftWidth)
-	m.table.SetHeight(util.Ternary(m.showSearch, baseHeight-searchHeight, baseHeight))
+	m.table.SetHeight(util.Ternary(m.showSearch || m.showDeletePrompt, baseHeight-promptHeight, baseHeight))
 
 	if m.showSidePane {
 		m.resizeEntryForm(rightWidth)
@@ -243,6 +257,8 @@ func (m ListModel) View(contentWidth, contentHeight int) string {
 	left := m.table.View()
 	if m.showSearch {
 		left = lipgloss.JoinVertical(lipgloss.Left, m.search.View(), m.table.View())
+	} else if m.showDeletePrompt {
+		left = lipgloss.JoinVertical(lipgloss.Left, m.table.View(), m.confirm.View())
 	}
 	right := util.Ternary(m.showSidePane, m.renderPane(m.activePane == createPane, rightWidth, contentHeight, m.entryForm.View()), "")
 

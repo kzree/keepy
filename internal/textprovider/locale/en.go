@@ -18,13 +18,14 @@ var enLogin = map[string]string{
 }
 
 var enList = map[string]string{
-	key.LabelTitle:    "Title",
-	key.LabelUsername: "Username/Email",
-	key.LabelURL:      "URL",
-	key.LabelPassword: "Password",
-	key.LabelSearch:   " Search: %s\n",
-	key.ColumnTitle:   "Title",
-	key.ColumnEmail:   "Email",
-	key.ColumnURL:     "URL",
-	key.ColumnGroup:   "Group",
+	key.LabelTitle:          "Title",
+	key.LabelUsername:       "Username/Email",
+	key.LabelURL:            "URL",
+	key.LabelPassword:       "Password",
+	key.LabelSearch:         " Search: %s\n",
+	key.ColumnTitle:         "Title",
+	key.ColumnEmail:         "Email",
+	key.ColumnURL:           "URL",
+	key.ColumnGroup:         "Group",
+	key.DeleteConfirmPrompt: "Delete this entry?",
 }

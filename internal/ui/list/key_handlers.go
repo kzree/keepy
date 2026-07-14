@@ -3,6 +3,8 @@ package list
 import (
 	tea "charm.land/bubbletea/v2"
 	"kzree.com/keepy/internal/service"
+	"kzree.com/keepy/internal/textprovider/key"
+	"kzree.com/keepy/internal/ui/common"
 	"kzree.com/keepy/internal/ui/list/search"
 )
 
@@ -15,9 +17,6 @@ func (m *ListModel) getEntryOnCursor() *service.VaultEntry {
 }
 
 func (m ListModel) handleCopyEntry() (ListModel, tea.Cmd) {
-	if m.showSearch {
-		return m, nil
-	}
 	if m.activePane == listPane {
 		entry := m.getEntryOnCursor()
 		if entry == nil {
@@ -35,10 +34,6 @@ func (m ListModel) handleCopyEntry() (ListModel, tea.Cmd) {
 }
 
 func (m ListModel) handleOpenNewEntryForm() (ListModel, tea.Cmd) {
-	if m.showSearch {
-		return m, nil
-	}
-
 	m.showSidePane = true
 	m.activePane = createPane
 	m.resizeTable()
@@ -46,10 +41,6 @@ func (m ListModel) handleOpenNewEntryForm() (ListModel, tea.Cmd) {
 }
 
 func (m ListModel) handleClearFilter() (ListModel, tea.Cmd) {
-	if m.showSearch {
-		return m, nil
-	}
-
 	s, cmd := m.search.Update(search.ClearSearchMsg{})
 	m.search = s
 	m.FilterEntries("")
@@ -72,17 +63,26 @@ func (m ListModel) handleCloseSearch() (ListModel, tea.Cmd) {
 	return m, nil
 }
 
-func (m ListModel) handleDeleteEntry() (ListModel, tea.Cmd) {
-	if m.showSearch {
-		return m, nil
-	}
+func (m ListModel) handleOpenDeletePrompt() (ListModel, tea.Cmd) {
+	m.showDeletePrompt = true
+
 	if m.activePane == listPane {
 		entry := m.getEntryOnCursor()
-		return m, func() tea.Msg {
+		cmd := func() tea.Msg {
 			return DeleteEntryRequestMsg{
 				ID: entry.ID,
 			}
 		}
+
+		return m, func() tea.Msg {
+			return common.OpenConfirmMsg{
+				Msg: m.t.Text(key.DeleteConfirmPrompt),
+				Cmd: cmd,
+			}
+		}
 	}
+
+	m.showDeletePrompt = true
+
 	return m, nil
 }
