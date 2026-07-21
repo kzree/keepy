@@ -1,8 +1,16 @@
 package entryform
 
-import "kzree.com/keepy/internal/service"
+import (
+	"github.com/tobischo/gokeepasslib/v3"
+	"kzree.com/keepy/internal/service"
+)
 
 type SubmitEntryMsg struct {
+	Entry service.NewVaultEntry
+}
+
+type SubmitEditEntryMsg struct {
+	ID    gokeepasslib.UUID
 	Entry service.NewVaultEntry
 }
 

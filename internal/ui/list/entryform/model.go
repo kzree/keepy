@@ -5,6 +5,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/tobischo/gokeepasslib/v3"
 	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
@@ -18,6 +19,7 @@ type EntryFormModel struct {
 	spinner     spinner.Model
 	submitError error
 	formValues  *entryFormValues
+	editingID   *gokeepasslib.UUID
 }
 
 func NewEntryFormModel() EntryFormModel {
@@ -109,7 +111,23 @@ func (m *EntryFormModel) SetSize(width, height int) {
 
 func (m *EntryFormModel) reset() {
 	m.loading = false
-	m.form = newEntryForm(getEmptyFormValues())
+	m.submitError = nil
+	m.editingID = nil
+	m.formValues = getEmptyFormValues()
+	m.form = newEntryForm(m.formValues)
+}
+
+func (m *EntryFormModel) Edit(id gokeepasslib.UUID, entry service.NewVaultEntry) tea.Cmd {
+	m.reset()
+	m.editingID = &id
+	m.formValues = &entryFormValues{
+		Title:    entry.Title,
+		Username: entry.Username,
+		URL:      entry.URL,
+		Password: entry.Password,
+	}
+	m.form = newEntryForm(m.formValues)
+	return m.form.Init()
 }
 
 func (m *EntryFormModel) submitEntry() tea.Cmd {
@@ -121,8 +139,9 @@ func (m *EntryFormModel) submitEntry() tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		return SubmitEntryMsg{
-			entry,
+		if m.editingID != nil {
+			return SubmitEditEntryMsg{ID: *m.editingID, Entry: entry}
 		}
+		return SubmitEntryMsg{Entry: entry}
 	}
 }

@@ -82,6 +82,8 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 		return m.handleCopyFlashDoneMsg(msg)
 	case CopyPasswordSuccessMsg:
 		return m.handleCopyPasswordSuccessMsg()
+	case OpenEditEntryMsg:
+		return m.handleOpenEditEntryMsg(msg)
 	case entryform.CloseEntryForm:
 		return m.handleCloseNewEntryForm()
 	case common.CloseConfirmMsg:
@@ -107,6 +109,8 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 				return m.handleCopyEntry()
 			case control.NewEntry:
 				return m.handleOpenNewEntryForm()
+			case control.EditEntry:
+				return m.handleOpenEditEntryForm()
 			case control.ClearFilter:
 				return m.handleClearFilter()
 			case control.Search:

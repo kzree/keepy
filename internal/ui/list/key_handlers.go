@@ -40,6 +40,17 @@ func (m ListModel) handleOpenNewEntryForm() (ListModel, tea.Cmd) {
 	return m, nil
 }
 
+func (m ListModel) handleOpenEditEntryForm() (ListModel, tea.Cmd) {
+	entry := m.getEntryOnCursor()
+	if entry == nil {
+		return m, nil
+	}
+
+	return m, func() tea.Msg {
+		return EditEntryRequestMsg{Entry: *entry}
+	}
+}
+
 func (m ListModel) handleClearFilter() (ListModel, tea.Cmd) {
 	s, cmd := m.search.Update(search.ClearSearchMsg{})
 	m.search = s

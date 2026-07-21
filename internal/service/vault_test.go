@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tobischo/gokeepasslib/v3"
+	"github.com/tobischo/gokeepasslib/v3/wrappers"
 	"kzree.com/keepy/internal/util/testutil"
 )
 
@@ -266,6 +267,54 @@ func TestAddNewEntryPersistsEntriesAndPreservesPasswordsAcrossSaves(t *testing.T
 	assertEntryPassword(t, reopened, original.UUID, "original-secret")
 	assertEntryPassword(t, reopened, secondID, "second-secret")
 	assertEntryPassword(t, reopened, entries[2].ID, "third-secret")
+}
+
+func TestUpdateEntryReturnsErrorsForUnauthenticatedAndMissingEntries(t *testing.T) {
+	values := NewVaultEntry{Title: "Updated"}
+	assert.EqualError(t, NewVault().UpdateEntry(gokeepasslib.NewUUID(), values), "vault is not authenticated")
+
+	vault := newTestVault(gokeepasslib.Group{Name: "Root"})
+	assert.EqualError(t, vault.UpdateEntry(gokeepasslib.NewUUID(), values), "failed to find entry to update")
+}
+
+func TestUpdateEntryUpdatesNestedEntryAndPersists(t *testing.T) {
+	home := testutil.TempHome(t)
+	original := newTestEntry("Original", "original@example.com", "original-secret", "https://original.example")
+	original.Get(PasswordKey).Value.Protected = wrappers.NewBoolWrapper(true)
+	original.Values = append(original.Values, gokeepasslib.ValueData{
+		Key:   "Notes",
+		Value: gokeepasslib.V{Content: "preserve me"},
+	})
+	writeTestDatabase(t, filepath.Join(home, "vault.kdbx"), testVaultPassword, "", gokeepasslib.Group{
+		Name: "Root",
+		Groups: []gokeepasslib.Group{{
+			Name:    "Nested",
+			Entries: []gokeepasslib.Entry{original},
+		}},
+	})
+	vault := NewVault()
+	require.NoError(t, vault.Authenticate("vault.kdbx", "", testVaultPassword, false))
+	updated := NewVaultEntry{
+		Title:    "Updated",
+		Username: "updated@example.com",
+		Password: "updated-secret",
+		URL:      "https://updated.example",
+	}
+
+	require.NoError(t, vault.UpdateEntry(original.UUID, updated))
+
+	reopened := NewVault()
+	require.NoError(t, reopened.Authenticate("vault.kdbx", "", testVaultPassword, false))
+	entries := reopened.GetEntriesFlat()
+	require.Len(t, entries, 1)
+	assert.Equal(t, original.UUID, entries[0].ID)
+	assert.Equal(t, updated.Title, entries[0].Title)
+	assert.Equal(t, updated.Username, entries[0].Username)
+	assert.Equal(t, updated.URL, entries[0].URL)
+	assert.Equal(t, "Nested", entries[0].Group)
+	assertEntryPassword(t, reopened, original.UUID, updated.Password)
+	assert.True(t, reopened.db.Content.Root.Groups[0].Groups[0].Entries[0].Get(PasswordKey).Value.Protected.Bool)
+	assert.Equal(t, "preserve me", reopened.db.Content.Root.Groups[0].Groups[0].Entries[0].GetContent("Notes"))
 }
 
 func TestDeleteEntryReturnsErrorsForUnauthenticatedAndMissingEntries(t *testing.T) {

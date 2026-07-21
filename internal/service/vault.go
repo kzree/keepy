@@ -181,6 +181,57 @@ func (v *Vault) AddNewEntry(entry NewVaultEntry) error {
 	return v.LockAndSave()
 }
 
+func (v *Vault) UpdateEntry(id gokeepasslib.UUID, values NewVaultEntry) error {
+	if !v.authenticated {
+		return errors.New("vault is not authenticated")
+	}
+
+	for i := range v.db.Content.Root.Groups {
+		if updateEntryByID(&v.db.Content.Root.Groups[i], id, values) {
+			return v.LockAndSave()
+		}
+	}
+
+	return errors.New("failed to find entry to update")
+}
+
+func updateEntryByID(group *gokeepasslib.Group, id gokeepasslib.UUID, values NewVaultEntry) bool {
+	for i := range group.Entries {
+		entry := &group.Entries[i]
+		if entry.UUID.Compare(id) {
+			setEntryValue(entry, "Title", values.Title)
+			setEntryValue(entry, UsernameKey, values.Username)
+			setEntryValue(entry, PasswordKey, values.Password)
+			setEntryValue(entry, URLKey, values.URL)
+			return true
+		}
+	}
+
+	for i := range group.Groups {
+		if updateEntryByID(&group.Groups[i], id, values) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func setEntryValue(entry *gokeepasslib.Entry, key, content string) {
+	value := entry.Get(key)
+	if value != nil {
+		value.Value.Content = content
+		return
+	}
+
+	entry.Values = append(entry.Values, gokeepasslib.ValueData{
+		Key: key,
+		Value: gokeepasslib.V{
+			Content:   content,
+			Protected: wrappers.NewBoolWrapper(key == PasswordKey),
+		},
+	})
+}
+
 func (v *Vault) DeleteEntry(id gokeepasslib.UUID) error {
 	if !v.authenticated {
 		return errors.New("vault is not authenticated")

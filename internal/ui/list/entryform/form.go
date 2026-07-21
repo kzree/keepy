@@ -1,4 +1,4 @@
-// Package entryform provides a form for creating new entries in the list UI.
+// Package entryform provides a form for creating and editing entries in the list UI.
 package entryform
 
 import (

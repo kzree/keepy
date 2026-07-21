@@ -9,6 +9,7 @@ const (
 	LoginToggle        = "ctrl+t"
 	CopyEntry          = "c"
 	NewEntry           = "n"
+	EditEntry          = "e"
 	ClearFilter        = "x"
 	Search             = "f"
 	DeleteEntity       = "d"

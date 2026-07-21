@@ -92,6 +92,32 @@ func (r RootModel) handleSubmitEntry(msg entryform.SubmitEntryMsg) (RootModel, t
 	}
 }
 
+func (r RootModel) handleEditEntryRequestMsg(msg list.EditEntryRequestMsg) (RootModel, tea.Cmd) {
+	password, err := r.db.GetEntryPassword(msg.Entry.ID)
+	if err != nil {
+		return r, func() tea.Msg {
+			return entryform.SubmitFailedMsg{Error: err}
+		}
+	}
+
+	return r, func() tea.Msg {
+		return list.OpenEditEntryMsg{Entry: msg.Entry, Password: password}
+	}
+}
+
+func (r RootModel) handleSubmitEditEntry(msg entryform.SubmitEditEntryMsg) (RootModel, tea.Cmd) {
+	if err := r.db.UpdateEntry(msg.ID, msg.Entry); err != nil {
+		return r, func() tea.Msg {
+			return entryform.SubmitFailedMsg{Error: err}
+		}
+	}
+
+	r.list.SetEntries(r.db.GetEntriesFlat())
+	return r, func() tea.Msg {
+		return entryform.SubmitSuccessMsg{}
+	}
+}
+
 func (r RootModel) handleDeleteEntryRequestMsg(msg list.DeleteEntryRequestMsg) (RootModel, tea.Cmd) {
 	err := r.db.DeleteEntry(msg.ID)
 	if err != nil {

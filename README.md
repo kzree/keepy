@@ -21,22 +21,23 @@ Default keymap. Planned to be configurable in the config
 - `F` - enter search mode
 - `X` - clear filter
 - `N` - enter new entry mode
+- `E` - edit highlighted entry
 
 #### Search mode
 
 - `Enter` or `Esc` - close search mode
 
-#### New entry mode
+#### Entry form
 
 - `Enter` and `Shift + enter` - navigate the form and submit
 - `Ctrl+G` - generate random 24 character password
-- `Esc` - quit new entry mode (resets the form)
+- `Esc` - quit entry form (resets the form)
 
 ## Todo for v1.0
 
 - [x] Search
 - [x] Create new entry
-- [ ] Edit new entry
+- [x] Edit entry
 - [x] Delete entry
   - [x] Confirm component
 - [ ] Login redesign, both UI and UX

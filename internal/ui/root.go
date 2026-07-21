@@ -66,6 +66,9 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case list.DeleteEntryRequestMsg:
 		return r.handleDeleteEntryRequestMsg(msg)
 
+	case list.EditEntryRequestMsg:
+		return r.handleEditEntryRequestMsg(msg)
+
 	case tea.KeyPressMsg:
 		if r, cmd, handled := r.handleKeyPressMsg(msg); handled {
 			return r, cmd
@@ -73,6 +76,9 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case entryform.SubmitEntryMsg:
 		return r.handleSubmitEntry(msg)
+
+	case entryform.SubmitEditEntryMsg:
+		return r.handleSubmitEditEntry(msg)
 
 	case tea.WindowSizeMsg:
 		return r.handleWindowSizeMsg(msg)

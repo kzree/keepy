@@ -2,8 +2,22 @@ package list
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/ui/common"
 )
+
+func (m ListModel) handleOpenEditEntryMsg(msg OpenEditEntryMsg) (ListModel, tea.Cmd) {
+	m.showSidePane = true
+	m.activePane = createPane
+	cmd := m.entryForm.Edit(msg.Entry.ID, service.NewVaultEntry{
+		Title:    msg.Entry.Title,
+		Username: msg.Entry.Username,
+		URL:      msg.Entry.URL,
+		Password: msg.Password,
+	})
+	m.resizeTable()
+	return m, cmd
+}
 
 func (m ListModel) handleCopyFlashDoneMsg(msg copyFlashDoneMsg) (ListModel, tea.Cmd) {
 	if msg.id == m.copyFlashID {
