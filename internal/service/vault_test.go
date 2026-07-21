@@ -51,8 +51,7 @@ func TestNewVaultEntryToKeepassEntryMapsFieldsAndProtectsPassword(t *testing.T) 
 }
 
 func TestAuthenticatePasswordOnlyLoadsAndUnlocksDatabase(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv(testutil.HomeEnv, home)
+	home := testutil.TempHome(t)
 	entry := newTestEntry("Example", "user@example.com", "secret", "https://example.com")
 	writeTestDatabase(t, filepath.Join(home, "vault.kdbx"), testVaultPassword, "", gokeepasslib.Group{
 		Name:    "Root",
@@ -73,8 +72,7 @@ func TestAuthenticatePasswordOnlyLoadsAndUnlocksDatabase(t *testing.T) {
 }
 
 func TestAuthenticateWithPasswordAndKeyFile(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv(testutil.HomeEnv, home)
+	home := testutil.TempHome(t)
 	keyPath := filepath.Join(home, "vault.key")
 	require.NoError(t, os.WriteFile(keyPath, bytes.Repeat([]byte{0x2a}, 32), 0o600))
 	entry := newTestEntry("Example", "user@example.com", "secret", "https://example.com")
@@ -93,8 +91,7 @@ func TestAuthenticateWithPasswordAndKeyFile(t *testing.T) {
 }
 
 func TestAuthenticateReturnsErrorForInvalidInputs(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv(testutil.HomeEnv, home)
+	home := testutil.TempHome(t)
 	require.NoError(t, os.WriteFile(filepath.Join(home, "malformed.kdbx"), []byte("not a database"), 0o600))
 	writeTestDatabase(t, filepath.Join(home, "vault.kdbx"), testVaultPassword, "", gokeepasslib.Group{Name: "Root"})
 
@@ -126,8 +123,7 @@ func TestAuthenticateReturnsErrorForInvalidInputs(t *testing.T) {
 }
 
 func TestFailedAuthenticationClearsPreviousAuthenticatedState(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv(testutil.HomeEnv, home)
+	home := testutil.TempHome(t)
 	writeTestDatabase(t, filepath.Join(home, "vault.kdbx"), testVaultPassword, "", gokeepasslib.Group{Name: "Root"})
 	vault := NewVault()
 	require.NoError(t, vault.Authenticate("vault.kdbx", "", testVaultPassword, false))
@@ -140,8 +136,7 @@ func TestFailedAuthenticationClearsPreviousAuthenticatedState(t *testing.T) {
 }
 
 func TestReAuthenticateUsesOriginalKeyFileChoice(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv(testutil.HomeEnv, home)
+	home := testutil.TempHome(t)
 	entry := newTestEntry("Example", "user@example.com", "secret", "https://example.com")
 	writeTestDatabase(t, filepath.Join(home, "vault.kdbx"), testVaultPassword, "", gokeepasslib.Group{
 		Name:    "Root",
@@ -242,8 +237,7 @@ func TestAddNewEntryReturnsErrorWhenVaultCannotAcceptEntry(t *testing.T) {
 }
 
 func TestAddNewEntryPersistsEntriesAndPreservesPasswordsAcrossSaves(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv(testutil.HomeEnv, home)
+	home := testutil.TempHome(t)
 	original := newTestEntry("Original", "original@example.com", "original-secret", "https://original.example")
 	writeTestDatabase(t, filepath.Join(home, "vault.kdbx"), testVaultPassword, "", gokeepasslib.Group{
 		Name:    "Root",
@@ -282,8 +276,7 @@ func TestDeleteEntryReturnsErrorsForUnauthenticatedAndMissingEntries(t *testing.
 }
 
 func TestDeleteEntryRemovesNestedEntryAndPersists(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv(testutil.HomeEnv, home)
+	home := testutil.TempHome(t)
 	keep := newTestEntry("Keep", "keep@example.com", "keep-secret", "https://keep.example")
 	remove := newTestEntry("Remove", "remove@example.com", "remove-secret", "https://remove.example")
 	writeTestDatabase(t, filepath.Join(home, "vault.kdbx"), testVaultPassword, "", gokeepasslib.Group{
@@ -329,8 +322,7 @@ func TestLockAndSaveReturnsPersistenceErrors(t *testing.T) {
 	})
 
 	t.Run("create database file", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv(testutil.HomeEnv, home)
+		testutil.TempHome(t)
 		db := gokeepasslib.NewDatabase()
 		vault := &Vault{db: db, dbPath: filepath.Join("missing", "vault.kdbx")}
 
@@ -338,8 +330,7 @@ func TestLockAndSaveReturnsPersistenceErrors(t *testing.T) {
 	})
 
 	t.Run("encode database", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv(testutil.HomeEnv, home)
+		testutil.TempHome(t)
 		db := gokeepasslib.NewDatabase()
 		db.Credentials = nil
 		vault := &Vault{db: db, dbPath: "vault.kdbx"}

@@ -12,8 +12,7 @@ import (
 )
 
 func TestPathFromHome(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv(testutil.HomeEnv, home)
+	home := testutil.TempHome(t)
 
 	tests := []struct {
 		name string
