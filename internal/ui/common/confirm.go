@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
+	"kzree.com/keepy/internal/control"
 )
 
 type ConfirmPromptModel struct {
@@ -36,7 +37,7 @@ func (m ConfirmPromptModel) Update(msg tea.Msg) (ConfirmPromptModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
-		case "y":
+		case control.Confirm:
 			if m.confirmCommand != nil {
 				return m, func() tea.Msg {
 					return CloseConfirmMsg{
@@ -45,7 +46,7 @@ func (m ConfirmPromptModel) Update(msg tea.Msg) (ConfirmPromptModel, tea.Cmd) {
 					}
 				}
 			}
-		case "n":
+		case control.Cancel:
 			return m, func() tea.Msg {
 				return CloseConfirmMsg{
 					Cmd:     nil,

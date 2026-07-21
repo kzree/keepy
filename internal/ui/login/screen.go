@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
 	"kzree.com/keepy/internal/util"
@@ -70,7 +71,7 @@ func (m LoginModel) Update(msg tea.Msg) (LoginModel, tea.Cmd) {
 		return m.handleAuthenticationFailedMsg(msg)
 	case tea.KeyPressMsg:
 		switch msg.String() {
-		case "ctrl+t":
+		case control.LoginToggle:
 			return m.handleTogglePathFields()
 		}
 	}

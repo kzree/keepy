@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/tobischo/gokeepasslib/v3"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
 	"kzree.com/keepy/internal/textprovider"
@@ -102,15 +103,15 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 
 		if !disableInput {
 			switch msg.String() {
-			case "c":
+			case control.CopyEntry:
 				return m.handleCopyEntry()
-			case "n":
+			case control.NewEntry:
 				return m.handleOpenNewEntryForm()
-			case "x":
+			case control.ClearFilter:
 				return m.handleClearFilter()
-			case "f":
+			case control.Search:
 				return m.handleShowSearch()
-			case "d":
+			case control.DeleteEntity:
 				return m.handleOpenDeletePrompt()
 			}
 		}

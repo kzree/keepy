@@ -5,6 +5,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
 )
@@ -51,9 +52,9 @@ func (m EntryFormModel) Update(msg tea.Msg) (EntryFormModel, tea.Cmd) {
 		m.submitError = msg.Error
 	case tea.KeyPressMsg:
 		switch msg.String() {
-		case "ctrl+g":
+		case control.GeneratePassword:
 			return m.handleGeneratePassword()
-		case "esc":
+		case control.CloseEntryForm:
 			m.reset()
 			return m, func() tea.Msg {
 				return CloseEntryForm{}
