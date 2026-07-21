@@ -12,6 +12,11 @@ run/app:
 test:
 	@go test ./...
 
+## test/ci: run all tests and generate a coverage profile
+.PHONY: test/ci
+test/ci:
+	@go test -coverprofile=coverage.txt ./...
+
 ## install-hooks: configure git to use repository hooks
 .PHONY: install-hooks
 install-hooks:

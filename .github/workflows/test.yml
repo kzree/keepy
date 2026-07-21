@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  coverage:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,5 +18,43 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Run tests
-        run: go test ./...
+      - name: Run tests with coverage
+        run: make test/ci
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v6
+        with:
+          name: code-coverage
+          path: coverage.txt
+          if-no-files-found: error
+
+  coverage-report:
+    if: github.event_name == 'pull_request'
+    needs: coverage
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Create coverage report
+        id: coverage
+        uses: fgrosse/go-coverage-report@v1.3.1
+        with:
+          root-package: kzree.com/keepy
+          skip-comment: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+
+      - name: Add coverage report to job summary
+        env:
+          COVERAGE_REPORT: ${{ steps.coverage.outputs.coverage_report }}
+          COVERAGE_TOTAL: ${{ steps.coverage.outputs.total_coverage }}
+          COVERAGE_DELTA: ${{ steps.coverage.outputs.coverage_delta }}
+        run: |
+          {
+            printf '## Coverage\n\n'
+            printf '| Total | Change |\n'
+            printf '| ---: | ---: |\n'
+            printf '| %s%% | %s%% |\n\n' "$COVERAGE_TOTAL" "$COVERAGE_DELTA"
+            printf '%s\n' "$COVERAGE_REPORT"
+          } >> "$GITHUB_STEP_SUMMARY"
