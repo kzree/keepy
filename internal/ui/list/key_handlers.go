@@ -37,7 +37,7 @@ func (m ListModel) handleOpenNewEntryForm() (ListModel, tea.Cmd) {
 	m.showSidePane = true
 	m.activePane = createPane
 	m.resizeTable()
-	return m, nil
+	return m, m.entryForm.Init()
 }
 
 func (m ListModel) handleOpenEditEntryForm() (ListModel, tea.Cmd) {
