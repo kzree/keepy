@@ -61,6 +61,7 @@ type Vault struct {
 	dbPath      string
 	keyFilePath string
 	password    string
+	useKeyFile  bool
 
 	db *gokeepasslib.Database
 
@@ -73,6 +74,7 @@ func NewVault() *Vault {
 		dbPath:        "",
 		keyFilePath:   "",
 		password:      "",
+		useKeyFile:    false,
 		authenticated: false,
 		authError:     nil,
 	}
@@ -127,12 +129,13 @@ func (v *Vault) Authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 	v.dbPath = dbPath
 	v.keyFilePath = keyFilePath
 	v.password = password
+	v.useKeyFile = useKeyFile
 
 	return nil
 }
 
 func (v *Vault) ReAuthenticate() error {
-	return v.Authenticate(v.dbPath, v.keyFilePath, v.password, v.keyFilePath != "")
+	return v.Authenticate(v.dbPath, v.keyFilePath, v.password, v.useKeyFile)
 }
 
 func (v *Vault) GetEntriesFlat() []VaultEntry {
@@ -221,7 +224,11 @@ func (v *Vault) LockAndSave() error {
 		return err
 	}
 	defer file.Close()
-	return gokeepasslib.NewEncoder(file).Encode(v.db)
+	if err := gokeepasslib.NewEncoder(file).Encode(v.db); err != nil {
+		return err
+	}
+
+	return v.db.UnlockProtectedEntries()
 }
 
 func findEntryPassword(group gokeepasslib.Group, id gokeepasslib.UUID) (string, bool) {

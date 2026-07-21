@@ -8,11 +8,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"kzree.com/keepy/internal/util/testutil"
 )
 
 func TestPathFromHome(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	t.Setenv(testutil.HomeEnv, home)
 
 	tests := []struct {
 		name string

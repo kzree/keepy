@@ -7,11 +7,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"kzree.com/keepy/internal/util/testutil"
 )
 
 func TestLoadConfigReadsTomlConfig(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	t.Setenv(testutil.HomeEnv, home)
 	configPath := filepath.Join(home, configPathFromHome, configFileName)
 	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o755))
 	require.NoError(t, os.WriteFile(configPath, []byte(`[credentials]
@@ -29,7 +30,7 @@ key_file_path = "~/vault.key"
 
 func TestLoadConfigCreatesDefaultConfigWhenConfigIsMissing(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	t.Setenv(testutil.HomeEnv, home)
 	configPath := filepath.Join(home, configPathFromHome, configFileName)
 
 	cfg, err := LoadConfig()
@@ -51,7 +52,7 @@ func TestLoadConfigCreatesDefaultConfigWhenConfigIsMissing(t *testing.T) {
 
 func TestLoadConfigReturnsErrorForInvalidToml(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	t.Setenv(testutil.HomeEnv, home)
 	configPath := filepath.Join(home, configPathFromHome, configFileName)
 	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o755))
 	require.NoError(t, os.WriteFile(configPath, []byte("[credentials\n"), 0o644))
@@ -63,7 +64,7 @@ func TestLoadConfigReturnsErrorForInvalidToml(t *testing.T) {
 }
 
 func TestSaveConfigRoundTrip(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	t.Setenv(testutil.HomeEnv, t.TempDir())
 	want := &Config{
 		Credentials: Credentials{
 			DBPath:      "~/db.kdbx",
@@ -81,7 +82,7 @@ func TestSaveConfigRoundTrip(t *testing.T) {
 
 func TestSaveConfigTruncatesExistingConfig(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	t.Setenv(testutil.HomeEnv, home)
 	configPath := filepath.Join(home, configPathFromHome, configFileName)
 
 	require.NoError(t, SaveConfig(&Config{
@@ -110,7 +111,7 @@ func TestSaveConfigTruncatesExistingConfig(t *testing.T) {
 
 func TestSaveConfigCreatesParentDirectories(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	t.Setenv(testutil.HomeEnv, home)
 	configPath := filepath.Join(home, configPathFromHome, configFileName)
 
 	require.NoError(t, SaveConfig(&Config{
@@ -123,4 +124,26 @@ func TestSaveConfigCreatesParentDirectories(t *testing.T) {
 	info, err := os.Stat(configPath)
 	require.NoError(t, err)
 	assert.False(t, info.IsDir())
+}
+
+func TestLoadConfigReturnsReadErrorWhenConfigPathIsDirectory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(testutil.HomeEnv, home)
+	configPath := filepath.Join(home, configPathFromHome, configFileName)
+	require.NoError(t, os.MkdirAll(configPath, 0o755))
+
+	cfg, err := LoadConfig()
+
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+}
+
+func TestSaveConfigReturnsErrorWhenParentPathIsFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(testutil.HomeEnv, home)
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".config"), []byte("not a directory"), 0o644))
+
+	err := SaveConfig(&Config{})
+
+	require.Error(t, err)
 }
