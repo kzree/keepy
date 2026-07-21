@@ -7,7 +7,12 @@ import (
 
 func (r RootModel) handleKeyPressMsg(msg tea.KeyPressMsg) (RootModel, tea.Cmd, bool) {
 	switch msg.String() {
-	case control.QuitApplication, control.QuitApplicationAlt:
+	case control.QuitApplication:
+		return r, tea.Quit, true
+	case control.QuitApplicationAlt:
+		if r.activeView == screenLogin || (r.activeView == screenList && r.list.IsTextInputActive()) {
+			return r, nil, false
+		}
 		return r, tea.Quit, true
 	}
 

@@ -74,6 +74,10 @@ func (m ListModel) Init() tea.Cmd {
 	return m.entryForm.Init()
 }
 
+func (m ListModel) IsTextInputActive() bool {
+	return m.showSearch || (m.showSidePane && m.activePane == createPane)
+}
+
 func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
