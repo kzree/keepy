@@ -37,14 +37,14 @@ Default keymap. Planned to be configurable in the config
 - [x] Search
 - [x] Create new entry
 - [ ] Edit new entry
-- [ ] Delete entry
-  - [ ] Confirm component
+- [x] Delete entry
+  - [x] Confirm component
 - [ ] Login redesign, both UI and UX
   - [ ] File picker for paths
 - [ ] Key hints
   - [ ] Modal with key hints
   - [ ] Configurable keybinds
-- [ ] i18n
+- [x] i18n
 - [ ] Proper error handling
 - [ ] Tests
 - [ ] Responsive TUI

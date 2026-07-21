@@ -26,7 +26,7 @@ type Config struct {
 	Credentials Credentials `toml:"credentials"`
 }
 
-func createDefaultConfig() error {
+func createDefaultConfig() (*Config, error) {
 	cfg := Config{
 		Preferences: Preferences{
 			Locale: "En",
@@ -37,7 +37,7 @@ func createDefaultConfig() error {
 		},
 	}
 
-	return SaveConfig(&cfg)
+	return &cfg, SaveConfig(&cfg)
 }
 
 func getAbsoluteConfigPath() string {
@@ -57,16 +57,12 @@ func LoadConfig() (*Config, error) {
 			return nil, err
 		}
 
-		cfg := Config{
-			Preferences: Preferences{Locale: "En"},
-			Credentials: Credentials{},
-		}
-
-		if err := SaveConfig(&cfg); err != nil {
+		cfg, err := createDefaultConfig()
+		if err != nil {
 			return nil, err
 		}
 
-		return &cfg, nil
+		return cfg, nil
 	}
 
 	var cfg Config
