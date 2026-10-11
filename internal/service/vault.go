@@ -233,9 +233,9 @@ func (v *Vault) AddNewEntry(entry NewVaultEntry) error {
 	}
 
 	newEntry := entry.ToKeepassEntry()
-
-	v.db.Content.Root.Groups[0].Entries = append(v.db.Content.Root.Groups[0].Entries, newEntry)
-	return v.lockAndSave()
+	working := copyVaultDatabase(v.db)
+	working.Content.Root.Groups[0].Entries = append(working.Content.Root.Groups[0].Entries, newEntry)
+	return v.saveWorkingDatabase(working)
 }
 
 func (v *Vault) UpdateEntry(id gokeepasslib.UUID, values NewVaultEntry) error {
@@ -245,9 +245,10 @@ func (v *Vault) UpdateEntry(id gokeepasslib.UUID, values NewVaultEntry) error {
 		return errors.New("vault is not authenticated")
 	}
 
-	for i := range v.db.Content.Root.Groups {
-		if updateEntryByID(&v.db.Content.Root.Groups[i], id, values) {
-			return v.lockAndSave()
+	working := copyVaultDatabase(v.db)
+	for i := range working.Content.Root.Groups {
+		if updateEntryByID(&working.Content.Root.Groups[i], id, values) {
+			return v.saveWorkingDatabase(working)
 		}
 	}
 
@@ -298,10 +299,11 @@ func (v *Vault) DeleteEntry(id gokeepasslib.UUID) error {
 		return errors.New("vault is not authenticated")
 	}
 
-	for i := range v.db.Content.Root.Groups {
-		found := v.findAndDeleteEntryByID(&v.db.Content.Root.Groups[i], id)
+	working := copyVaultDatabase(v.db)
+	for i := range working.Content.Root.Groups {
+		found := v.findAndDeleteEntryByID(&working.Content.Root.Groups[i], id)
 		if found {
-			return v.lockAndSave()
+			return v.saveWorkingDatabase(working)
 		}
 	}
 
@@ -337,7 +339,16 @@ func (v *Vault) LockAndSave() error {
 // lockAndSave requires v.mu to be held for writing. This legacy implementation
 // does not yet provide transactional rollback or atomic file replacement.
 func (v *Vault) lockAndSave() error {
-	if err := v.db.LockProtectedEntries(); err != nil {
+	return v.saveWorkingDatabase(v.db)
+}
+
+// saveWorkingDatabase requires v.mu to be held for writing. Only the separate
+// encoding copy is locked or changed by the encoder. A successful write publishes
+// the unlocked working state; failures discard it. This legacy writer still
+// truncates the destination and does not provide file rollback or atomic commit.
+func (v *Vault) saveWorkingDatabase(working *gokeepasslib.Database) error {
+	encoding, err := encodingVaultCopy(working)
+	if err != nil {
 		return err
 	}
 	file, err := os.Create(v.dbPath)
@@ -345,11 +356,12 @@ func (v *Vault) lockAndSave() error {
 		return err
 	}
 	defer file.Close()
-	if err := gokeepasslib.NewEncoder(file).Encode(v.db); err != nil {
+	err = gokeepasslib.NewEncoder(file).Encode(encoding)
+	if err := errors.Join(err, file.Close()); err != nil {
 		return err
 	}
-
-	return v.db.UnlockProtectedEntries()
+	v.db = working
+	return nil
 }
 
 func findEntryPassword(group gokeepasslib.Group, id gokeepasslib.UUID) (string, bool) {

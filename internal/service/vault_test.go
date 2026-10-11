@@ -480,6 +480,7 @@ func TestLockAndSaveReturnsPersistenceErrors(t *testing.T) {
 	t.Run("create database file", func(t *testing.T) {
 		home := testutil.TempHome(t)
 		db := gokeepasslib.NewDatabase()
+		db.Content.Root.Groups = []gokeepasslib.Group{{Name: "Root"}}
 		vault := &Vault{db: db, dbPath: filepath.Join(home, "missing", "vault.kdbx")}
 
 		require.Error(t, vault.LockAndSave())
@@ -488,6 +489,7 @@ func TestLockAndSaveReturnsPersistenceErrors(t *testing.T) {
 	t.Run("encode database", func(t *testing.T) {
 		home := testutil.TempHome(t)
 		db := gokeepasslib.NewDatabase()
+		db.Content.Root.Groups = []gokeepasslib.Group{{Name: "Root"}}
 		db.Credentials = nil
 		vault := &Vault{db: db, dbPath: filepath.Join(home, "vault.kdbx")}
 
