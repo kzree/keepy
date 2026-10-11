@@ -135,11 +135,13 @@ func assertEntryPassword(t *testing.T, vault *Vault, id gokeepasslib.UUID, want 
 // failure points, keeping tests independent of host filesystem restrictions.
 type faultVaultTempFile struct {
 	vaultTempFile
-	writeErr error
-	chmodErr error
-	syncErr  error
-	closeErr error
-	closes   int
+	writeErr   error
+	writeOnce  bool
+	shortWrite bool
+	chmodErr   error
+	syncErr    error
+	closeErr   error
+	closes     int
 }
 
 func captureTestTempFile(p *vaultPersistence) *faultVaultTempFile {
@@ -157,9 +159,17 @@ func captureTestTempFile(p *vaultPersistence) *faultVaultTempFile {
 }
 
 func (f *faultVaultTempFile) Write(data []byte) (int, error) {
+	if f.shortWrite {
+		f.shortWrite = false
+		return f.vaultTempFile.Write(data[:len(data)/2])
+	}
 	if f.writeErr != nil {
+		cause := f.writeErr
+		if f.writeOnce {
+			f.writeErr = nil
+		}
 		n, err := f.vaultTempFile.Write(data[:len(data)/2])
-		return n, errors.Join(err, f.writeErr)
+		return n, errors.Join(err, cause)
 	}
 	return f.vaultTempFile.Write(data)
 }

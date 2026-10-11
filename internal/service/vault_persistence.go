@@ -42,7 +42,11 @@ type vaultPersistence struct {
 	open       func(string) (vaultReadFile, error)
 	createTemp func(string, string) (vaultTempFile, error)
 	remove     func(string) error
-	replace    func(string, string) error
+	// replace reports namespace commitment independently of post-commit errors.
+	// Implementations must never delete the destination first or fall back to
+	// copying. Hooks returning committed=false must leave the destination intact.
+	replace       func(string, string) (committed bool, err error)
+	syncDirectory func(string) error
 }
 
 func newVaultPersistence() *vaultPersistence {
@@ -51,10 +55,9 @@ func newVaultPersistence() *vaultPersistence {
 		createTemp: func(dir, pattern string) (vaultTempFile, error) {
 			return os.CreateTemp(dir, pattern)
 		},
-		remove: os.Remove,
-		// This is only a replacement primitive. Platform-specific atomicity
-		// and directory durability will be established by the save pipeline.
-		replace: os.Rename,
+		remove:        os.Remove,
+		replace:       replaceVaultFile,
+		syncDirectory: syncVaultDirectory,
 	}
 }
 
@@ -118,8 +121,15 @@ func (p *vaultPersistence) prepare(destination string, mode os.FileMode, encode 
 		}
 	}()
 	hash := sha256.New()
-	if err := encode(io.MultiWriter(file, hash)); err != nil {
-		return nil, persistenceError("encode temporary database", err)
+	writer := &vaultEncodingWriter{writer: io.MultiWriter(file, hash)}
+	encodeErr := encode(writer)
+	// Some encoder paths ignore individual writes. Never accept a successful
+	// Encode result after an earlier failed or short write.
+	if writer.err != nil && !errors.Is(encodeErr, writer.err) {
+		encodeErr = errors.Join(encodeErr, writer.err)
+	}
+	if encodeErr != nil {
+		return nil, persistenceError("encode temporary database", encodeErr)
 	}
 	if err := file.Chmod(mode.Perm()); err != nil {
 		return nil, persistenceError("set database permissions", err)
@@ -143,18 +153,76 @@ func (p *vaultPersistence) prepare(destination string, mode os.FileMode, encode 
 	}, nil
 }
 
-// replace invokes the replacement primitive and transfers ownership on success.
-// It does not sync the directory or publish live vault state. Its errors are
-// plain errors, not transactional SaveError outcomes.
-func (f *preparedVaultFile) replace(destination string) error {
+// vaultEncodingWriter makes write errors sticky, including short writes that
+// violate io.Writer's contract, so an encoder cannot accidentally hide them.
+type vaultEncodingWriter struct {
+	writer io.Writer
+	err    error
+}
+
+func (w *vaultEncodingWriter) Write(data []byte) (int, error) {
+	if w.err != nil {
+		return 0, w.err
+	}
+	n, err := w.writer.Write(data)
+	if err == nil && n != len(data) {
+		err = io.ErrShortWrite
+	}
+	w.err = err
+	return n, err
+}
+
+// replace transfers ownership as soon as namespace replacement commits, even
+// when a subsequent platform flush/close fails. A committed result must never be
+// retried as a mutation. It does not sync the parent directory or publish live
+// state; the transaction owner must publish the matching state before returning
+// a committed error. Its errors are plain errors, not SaveError outcomes.
+func (f *preparedVaultFile) replace(destination string) (committed bool, err error) {
 	if f.path == "" {
-		return errors.New("temporary database already consumed")
+		return false, errors.New("temporary database already consumed")
 	}
-	if err := f.persistence.replace(f.path, destination); err != nil {
-		return persistenceError("replace database", err)
+	// Atomic replacement requires a same-directory prepared file. Resolve the
+	// absolute spelling before comparing to allow relative destinations in tests.
+	fromDir, err := filepath.Abs(filepath.Dir(f.path))
+	if err != nil {
+		return false, err
 	}
-	f.path = ""
-	return nil
+	toDir, err := filepath.Abs(filepath.Dir(destination))
+	if err != nil {
+		return false, err
+	}
+	if fromDir != toDir {
+		return false, errors.New("database replacement must stay in the prepared directory")
+	}
+	committed, err = f.persistence.replace(f.path, destination)
+	if committed {
+		f.path = ""
+	}
+	if err != nil {
+		return committed, persistenceError("replace database", err)
+	}
+	if !committed {
+		return false, errors.New("database replacement returned without a commit")
+	}
+	return true, nil
+}
+
+// commit replaces and requests the platform's supported durability checks. The
+// bool remains true on post-commit failure. A transaction owner must publish the
+// matching unlocked database/baseline whenever it is true, before releasing its
+// lock. No live vault state is modified by this filesystem helper.
+func (f *preparedVaultFile) commit(destination string) (committed bool, err error) {
+	committed, err = f.replace(destination)
+	if !committed {
+		return false, errors.Join(err, f.discard())
+	}
+	if err != nil {
+		return committed, err
+	}
+	if err := f.persistence.syncDirectory(filepath.Dir(destination)); err != nil {
+		return true, persistenceError("sync database directory", err)
+	}
+	return true, nil
 }
 
 func (f *preparedVaultFile) discard() error {
