@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -125,4 +126,83 @@ func assertEntryPassword(t *testing.T, vault *Vault, id gokeepasslib.UUID, want 
 	got, err := vault.GetEntryPassword(id)
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
+}
+
+// faultVaultTempFile delegates to a real temporary file except at the selected
+// failure points, keeping tests independent of host filesystem restrictions.
+type faultVaultTempFile struct {
+	vaultTempFile
+	writeErr error
+	chmodErr error
+	syncErr  error
+	closeErr error
+	closes   int
+}
+
+func captureTestTempFile(p *vaultPersistence) *faultVaultTempFile {
+	file := &faultVaultTempFile{}
+	create := p.createTemp
+	p.createTemp = func(dir, pattern string) (vaultTempFile, error) {
+		created, err := create(dir, pattern)
+		if err != nil {
+			return nil, err
+		}
+		file.vaultTempFile = created
+		return file, nil
+	}
+	return file
+}
+
+func (f *faultVaultTempFile) Write(data []byte) (int, error) {
+	if f.writeErr != nil {
+		n, err := f.vaultTempFile.Write(data[:len(data)/2])
+		return n, errors.Join(err, f.writeErr)
+	}
+	return f.vaultTempFile.Write(data)
+}
+
+func (f *faultVaultTempFile) Chmod(mode os.FileMode) error {
+	if f.chmodErr != nil {
+		return f.chmodErr
+	}
+	return f.vaultTempFile.Chmod(mode)
+}
+
+func (f *faultVaultTempFile) Sync() error {
+	if f.syncErr != nil {
+		return f.syncErr
+	}
+	return f.vaultTempFile.Sync()
+}
+
+func (f *faultVaultTempFile) Close() error {
+	f.closes++
+	return errors.Join(f.vaultTempFile.Close(), f.closeErr)
+}
+
+type faultVaultReadFile struct {
+	vaultReadFile
+	statErr  error
+	readErr  error
+	closeErr error
+	closes   int
+}
+
+func (f *faultVaultReadFile) Stat() (os.FileInfo, error) {
+	if f.statErr != nil {
+		return nil, f.statErr
+	}
+	return f.vaultReadFile.Stat()
+}
+
+func (f *faultVaultReadFile) Read(data []byte) (int, error) {
+	if f.readErr != nil {
+		return 0, f.readErr
+	}
+	return f.vaultReadFile.Read(data)
+}
+
+func (f *faultVaultReadFile) Close() error {
+	f.closes++
+	return errors.Join(f.vaultReadFile.Close(), f.closeErr)
 }

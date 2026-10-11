@@ -3,9 +3,7 @@ package service
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -74,6 +72,8 @@ type Vault struct {
 
 	db *gokeepasslib.Database
 
+	persistence *vaultPersistence
+
 	// baseline describes the exact bytes loaded during authentication. Future
 	// transactional saves will replace it only when the replacement commits.
 	baseline *vaultFileBaseline
@@ -82,13 +82,9 @@ type Vault struct {
 	authError     error
 }
 
-type vaultFileBaseline struct {
-	fingerprint [sha256.Size]byte
-	mode        os.FileMode
-}
-
 func NewVault() *Vault {
 	return &Vault{
+		persistence:   newVaultPersistence(),
 		dbPath:        "",
 		keyFilePath:   "",
 		password:      "",
@@ -118,21 +114,7 @@ func (v *Vault) authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 	if err != nil {
 		return v.handleAuthError(err)
 	}
-	file, err := os.Open(dbAbsPath)
-	if err != nil {
-		return v.handleAuthError(err)
-	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		return v.handleAuthError(err)
-	}
-	if !info.Mode().IsRegular() {
-		return v.handleAuthError(errors.New("database path must refer to a regular file"))
-	}
-	// Decode and fingerprint the same snapshot, not two separate reads of a
-	// path that another client may replace between reads.
-	data, err := io.ReadAll(file)
+	snapshot, err := v.persistenceBackend().read(dbAbsPath)
 	if err != nil {
 		return v.handleAuthError(err)
 	}
@@ -154,7 +136,7 @@ func (v *Vault) authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 	} else {
 		db.Credentials = gokeepasslib.NewPasswordCredentials(password)
 	}
-	err = gokeepasslib.NewDecoder(bytes.NewReader(data)).Decode(db)
+	err = gokeepasslib.NewDecoder(bytes.NewReader(snapshot.data)).Decode(db)
 	if err != nil {
 		return v.handleAuthError(err)
 	}
@@ -169,14 +151,22 @@ func (v *Vault) authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 	v.db = db
 	v.dbPath = dbAbsPath
 	v.keyFilePath = resolvedKeyFile
-	v.baseline = &vaultFileBaseline{
-		fingerprint: sha256.Sum256(data),
-		mode:        info.Mode().Perm(),
-	}
+	// Copy the baseline so its pointer does not retain the snapshot's data.
+	baseline := snapshot.baseline
+	v.baseline = &baseline
 	v.password = password
 	v.useKeyFile = useKeyFile
 
 	return nil
+}
+
+// persistenceBackend requires v.mu to be held. The fallback supports vaults
+// constructed without NewVault, including in-memory test fixtures.
+func (v *Vault) persistenceBackend() *vaultPersistence {
+	if v.persistence == nil {
+		return newVaultPersistence()
+	}
+	return v.persistence
 }
 
 // resolveVaultPath pins symlinks (including parent-directory symlinks) to their
