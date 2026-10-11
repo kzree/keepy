@@ -59,7 +59,7 @@ func writeTestDatabase(t *testing.T, path, password, keyFilePath string, groups 
 	if keyFilePath == "" {
 		db.Credentials = gokeepasslib.NewPasswordCredentials(password)
 	} else {
-		credentials, err := gokeepasslib.NewPasswordAndKeyCredentials(password, keyFilePath)
+		credentials, err := gokeepasslib.NewPasswordAndKeyDataCredentials(password, readTestFile(t, keyFilePath))
 		require.NoError(t, err)
 		db.Credentials = credentials
 	}

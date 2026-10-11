@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -127,7 +128,14 @@ func (v *Vault) authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 			return v.handleAuthError(err)
 		}
 
-		creds, err := gokeepasslib.NewPasswordAndKeyCredentials(password, keyFile)
+		// The library's path-based key loader does not close its file in v3.6.2.
+		// ReadFile owns and closes the handle, including on failed reads; the
+		// byte-based parser preserves all supported KeePass key-file formats.
+		keyData, err := os.ReadFile(keyFile)
+		if err != nil {
+			return v.handleAuthError(err)
+		}
+		creds, err := gokeepasslib.NewPasswordAndKeyDataCredentials(password, keyData)
 		if err != nil {
 			return v.handleAuthError(err)
 		}
