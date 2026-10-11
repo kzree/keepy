@@ -6,18 +6,26 @@ import (
 )
 
 type SubmitEntryMsg struct {
-	Entry service.NewVaultEntry
+	RequestID uint64
+	Entry     service.NewVaultEntry
 }
 
 type SubmitEditEntryMsg struct {
-	ID    gokeepasslib.UUID
-	Entry service.NewVaultEntry
+	RequestID uint64
+	ID        gokeepasslib.UUID
+	Entry     service.NewVaultEntry
 }
 
-type SubmitSuccessMsg struct{}
+type SubmitSuccessMsg struct {
+	Warning error
+}
 
 type SubmitFailedMsg struct {
 	Error error
 }
 
-type CloseEntryForm struct{}
+type ReloadSuccessMsg struct{}
+
+type ReloadFailedMsg struct {
+	Error error
+}

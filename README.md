@@ -22,6 +22,8 @@ Default keymap. Planned to be configurable in the config
 - `X` - clear filter
 - `N` - enter new entry mode
 - `E` - edit highlighted entry
+- `D` - delete highlighted entry after confirmation
+- `Ctrl+R` - reload the latest database after an external-change conflict
 
 #### Search mode
 
@@ -32,6 +34,17 @@ Default keymap. Planned to be configurable in the config
 - `Enter` and `Shift + enter` - navigate the form and submit
 - `Ctrl+G` - generate random 24 character password
 - `Esc` - quit entry form (resets the form)
+
+### Save outcomes
+
+- Failed saves keep the form values. Correct the problem, review the draft, and
+  submit again to retry; saves are never retried automatically.
+- External-change conflicts block mutations until `Ctrl+R` reloads the database.
+  The form draft is retained for review against the latest entries. Reloading
+  does not repeat the pending mutation or automatically merge changes.
+- If a save commits but reports uncertain durability, the form closes and the
+  list refreshes from the committed vault. The warning remains visible; do not
+  repeat the mutation.
 
 ## Todo for v1.0
 

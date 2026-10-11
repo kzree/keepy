@@ -2,6 +2,7 @@
 package list
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -45,6 +46,14 @@ type ListModel struct {
 	copyFlashID      int
 	entries          []service.VaultEntry
 	filteredEntries  []service.VaultEntry
+	saveNotice       error
+	saveConflict     bool
+	reloading        bool
+	deleting         bool
+	deleteRequestID  uint64
+	openingEdit      bool
+	editRequestID    uint64
+	reloadRequestID  uint64
 
 	t *textprovider.TextProvider
 
@@ -82,17 +91,85 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case entryform.SubmitSuccessMsg:
+		m.openingEdit = false
+		m.activePane = listPane
+		m.showSidePane = false
+		m.saveNotice = msg.Warning
+		m.saveConflict = false
+		m.resizeTable()
+		cmd := m.entryForm.StartNew()
+		return m, cmd
+	case entryform.SubmitFailedMsg:
+		m.openingEdit = false
+		m.saveNotice = msg.Error
+		m.saveConflict = isSaveConflict(msg.Error)
+		m.resizeTable()
+		form, cmd := m.entryForm.Update(msg)
+		m.entryForm = form
+		return m, cmd
+	case SaveResultMsg:
+		m.deleting = false
+		m.openingEdit = false
+		m.saveNotice = msg.Error
+		m.saveConflict = isSaveConflict(msg.Error)
+		m.resizeTable()
+		return m, nil
+	case ReloadVaultResultMsg:
+		m.reloading = false
+		if msg.Error != nil {
+			m.saveNotice = msg.Error
+			m.resizeTable()
+			if m.showSidePane && m.activePane == createPane {
+				form, cmd := m.entryForm.Update(entryform.ReloadFailedMsg{Error: msg.Error})
+				m.entryForm = form
+				return m, cmd
+			}
+			return m, nil
+		}
+		m.saveNotice = nil
+		m.saveConflict = false
+		m.resizeTable()
+		if m.showSidePane && m.activePane == createPane {
+			form, cmd := m.entryForm.Update(entryform.ReloadSuccessMsg{})
+			m.entryForm = form
+			return m, cmd
+		}
+		return m, nil
 	case copyFlashDoneMsg:
 		return m.handleCopyFlashDoneMsg(msg)
 	case CopyPasswordSuccessMsg:
 		return m.handleCopyPasswordSuccessMsg()
 	case OpenEditEntryMsg:
 		return m.handleOpenEditEntryMsg(msg)
-	case entryform.CloseEntryForm:
-		return m.handleCloseNewEntryForm()
 	case common.CloseConfirmMsg:
 		return m.handleCloseDeletePrompt(msg)
+	case common.OpenConfirmMsg:
+		if !m.showDeletePrompt || m.deleting || msg.RequestID != m.deleteRequestID {
+			return m, nil
+		}
 	case tea.KeyPressMsg:
+		if m.reloading || m.deleting {
+			return m, nil
+		}
+		if msg.String() == control.ReloadVault && m.saveConflict {
+			m.reloading = true
+			m.openingEdit = false
+			m.reloadRequestID++
+			requestID := m.reloadRequestID
+			m.resizeTable()
+			return m, func() tea.Msg { return ReloadVaultRequestMsg{RequestID: requestID} }
+		}
+		if msg.String() == "esc" && m.openingEdit {
+			m.openingEdit = false
+			return m, nil
+		}
+		if msg.String() == control.CloseEntryForm && m.showSidePane && m.activePane == createPane && !m.entryForm.IsSaving() {
+			return m.handleCloseNewEntryForm()
+		}
+		if m.saveConflict && (msg.String() == control.NewEntry || msg.String() == control.EditEntry || msg.String() == control.DeleteEntity) && !(m.showSidePane && m.activePane == createPane) {
+			return m, nil
+		}
 		if m.showSidePane && m.activePane == createPane {
 			break
 		}
@@ -148,6 +225,27 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	}
 	return m, tea.Batch(cmds...)
+}
+
+func isSaveConflict(err error) bool {
+	var outcome *service.SaveError
+	return errors.As(err, &outcome) && outcome.Kind == service.SaveConflict
+}
+
+func (m ListModel) AcceptsFormSubmission(requestID uint64) bool {
+	return !m.saveConflict && !m.reloading && !m.deleting && m.showSidePane && m.activePane == createPane && m.entryForm.AcceptsSubmission(requestID)
+}
+
+func (m ListModel) AcceptsDelete(requestID uint64) bool {
+	return !m.saveConflict && !m.reloading && m.deleting && m.deleteRequestID == requestID
+}
+
+func (m ListModel) AcceptsEditOpen(requestID uint64) bool {
+	return !m.saveConflict && !m.reloading && !m.deleting && m.openingEdit && m.editRequestID == requestID
+}
+
+func (m ListModel) AcceptsReload(requestID uint64) bool {
+	return m.saveConflict && m.reloading && m.reloadRequestID == requestID
 }
 
 func entriesToRows(entries []service.VaultEntry) []table.Row {
@@ -251,7 +349,7 @@ func (m *ListModel) SetListTableSize(contentWidth, contentHeight int) {
 
 func (m *ListModel) resizeTable() {
 	leftWidth, rightWidth := m.getPaneWidths(m.width)
-	baseHeight := max(1, m.height)
+	baseHeight := max(1, m.height-lipgloss.Height(m.noticeView()))
 	m.table.SetWidth(leftWidth)
 	m.table.SetHeight(util.Ternary(m.showSearch || m.showDeletePrompt, baseHeight-promptHeight, baseHeight))
 
@@ -261,7 +359,9 @@ func (m *ListModel) resizeTable() {
 }
 
 func (m ListModel) View(contentWidth, contentHeight int) string {
-	_, rightWidth := m.getPaneWidths(contentWidth)
+	leftWidth, rightWidth := m.getPaneWidths(contentWidth)
+	notice := m.noticeView()
+	paneHeight := max(0, contentHeight-lipgloss.Height(notice))
 
 	left := m.table.View()
 	if m.showSearch {
@@ -269,12 +369,48 @@ func (m ListModel) View(contentWidth, contentHeight int) string {
 	} else if m.showDeletePrompt {
 		left = lipgloss.JoinVertical(lipgloss.Left, m.table.View(), m.confirm.View())
 	}
-	right := util.Ternary(m.showSidePane, m.renderPane(m.activePane == createPane, rightWidth, contentHeight, m.entryForm.View()), "")
+	left = boundedView(left, leftWidth, paneHeight)
+	right := ""
+	if m.showSidePane && paneHeight > 0 {
+		right = boundedView(m.renderPane(m.activePane == createPane, rightWidth, paneHeight, m.entryForm.View()), rightWidth, paneHeight)
+	}
 
-	return lipgloss.JoinHorizontal(
+	body := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		left,
 		strings.Repeat(" ", paneGap),
 		right,
 	)
+	if notice != "" {
+		return lipgloss.JoinVertical(lipgloss.Left, body, notice)
+	}
+	return body
+}
+
+func boundedView(body string, width, height int) string {
+	if width <= 0 || height <= 0 {
+		return ""
+	}
+	return lipgloss.NewStyle().MaxWidth(width).MaxHeight(height).Render(body)
+}
+
+func (m ListModel) noticeView() string {
+	var body string
+	if m.saveNotice != nil && !(m.showSidePane && m.activePane == createPane) {
+		var outcome *service.SaveError
+		if errors.As(m.saveNotice, &outcome) && outcome.Committed() {
+			body = "Save committed. Do not repeat the operation; durability could not be confirmed.\n"
+		}
+		if m.saveConflict {
+			body = "ctrl+r: reload latest database before trying another mutation.\n"
+		}
+		body += style.ErrorText.Render(m.saveNotice.Error())
+	}
+	if m.reloading {
+		body = "Reloading database..."
+	}
+	if body == "" {
+		return ""
+	}
+	return boundedView(lipgloss.NewStyle().Width(max(1, m.width)).Render(body), m.width, m.height)
 }

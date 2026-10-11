@@ -15,6 +15,7 @@ const (
 	DeleteEntity       = "d"
 	GeneratePassword   = "ctrl+g"
 	CloseEntryForm     = "esc"
+	ReloadVault        = "ctrl+r"
 	Confirm            = "y"
 	Cancel             = "n"
 )

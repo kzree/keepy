@@ -7,8 +7,18 @@ import (
 )
 
 func (m ListModel) handleOpenEditEntryMsg(msg OpenEditEntryMsg) (ListModel, tea.Cmd) {
+	if !m.AcceptsEditOpen(msg.RequestID) {
+		return m, nil
+	}
+	m.openingEdit = false
+	if msg.Error != nil {
+		m.saveNotice = msg.Error
+		m.resizeTable()
+		return m, nil
+	}
 	m.showSidePane = true
 	m.activePane = createPane
+	m.saveNotice = nil
 	cmd := m.entryForm.Edit(msg.Entry.ID, service.NewVaultEntry{
 		Title:    msg.Entry.Title,
 		Username: msg.Entry.Username,
@@ -33,14 +43,21 @@ func (m ListModel) handleCopyPasswordSuccessMsg() (ListModel, tea.Cmd) {
 }
 
 func (m ListModel) handleCloseNewEntryForm() (ListModel, tea.Cmd) {
+	m.openingEdit = false
 	m.activePane = listPane
 	m.showSidePane = false
-	return m, nil
+	m.resizeTable()
+	cmd := m.entryForm.StartNew()
+	return m, cmd
 }
 
 func (m ListModel) handleCloseDeletePrompt(msg common.CloseConfirmMsg) (ListModel, tea.Cmd) {
+	if !m.showDeletePrompt || m.deleting || msg.RequestID != m.deleteRequestID {
+		return m, nil
+	}
 	m.showDeletePrompt = false
 	if msg.Success {
+		m.deleting = true
 		cmd := msg.Cmd
 		return m, cmd
 	}

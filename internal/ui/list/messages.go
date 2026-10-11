@@ -20,14 +20,28 @@ type CopyPasswordFailureMsg struct {
 }
 
 type DeleteEntryRequestMsg struct {
-	ID gokeepasslib.UUID
+	RequestID uint64
+	ID        gokeepasslib.UUID
 }
 
 type EditEntryRequestMsg struct {
-	Entry service.VaultEntry
+	RequestID uint64
+	Entry     service.VaultEntry
 }
 
 type OpenEditEntryMsg struct {
-	Entry    service.VaultEntry
-	Password string
+	RequestID uint64
+	Error     error
+	Entry     service.VaultEntry
+	Password  string
+}
+
+type SaveResultMsg struct {
+	Error error
+}
+
+type ReloadVaultRequestMsg struct{ RequestID uint64 }
+
+type ReloadVaultResultMsg struct {
+	Error error
 }

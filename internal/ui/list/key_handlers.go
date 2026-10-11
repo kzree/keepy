@@ -34,10 +34,13 @@ func (m ListModel) handleCopyEntry() (ListModel, tea.Cmd) {
 }
 
 func (m ListModel) handleOpenNewEntryForm() (ListModel, tea.Cmd) {
+	m.openingEdit = false
 	m.showSidePane = true
 	m.activePane = createPane
+	m.saveNotice = nil
 	m.resizeTable()
-	return m, m.entryForm.Init()
+	cmd := m.entryForm.StartNew()
+	return m, cmd
 }
 
 func (m ListModel) handleOpenEditEntryForm() (ListModel, tea.Cmd) {
@@ -45,9 +48,12 @@ func (m ListModel) handleOpenEditEntryForm() (ListModel, tea.Cmd) {
 	if entry == nil {
 		return m, nil
 	}
+	m.openingEdit = true
+	m.editRequestID++
+	requestID := m.editRequestID
 
 	return m, func() tea.Msg {
-		return EditEntryRequestMsg{Entry: *entry}
+		return EditEntryRequestMsg{RequestID: requestID, Entry: *entry}
 	}
 }
 
@@ -75,20 +81,27 @@ func (m ListModel) handleCloseSearch() (ListModel, tea.Cmd) {
 }
 
 func (m ListModel) handleOpenDeletePrompt() (ListModel, tea.Cmd) {
-	m.showDeletePrompt = true
-
 	if m.activePane == listPane {
 		entry := m.getEntryOnCursor()
+		if entry == nil {
+			return m, nil
+		}
+		m.showDeletePrompt = true
+		m.openingEdit = false
+		m.deleteRequestID++
+		requestID := m.deleteRequestID
 		cmd := func() tea.Msg {
 			return DeleteEntryRequestMsg{
-				ID: entry.ID,
+				RequestID: requestID,
+				ID:        entry.ID,
 			}
 		}
 
 		return m, func() tea.Msg {
 			return common.OpenConfirmMsg{
-				Msg: m.t.Text(key.DeleteConfirmPrompt),
-				Cmd: cmd,
+				RequestID: requestID,
+				Msg:       m.t.Text(key.DeleteConfirmPrompt),
+				Cmd:       cmd,
 			}
 		}
 	}

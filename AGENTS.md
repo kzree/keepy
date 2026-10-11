@@ -88,6 +88,13 @@ UI state transitions in the relevant Bubble Tea models.
 
 ## Verification
 
+UI save handling must distinguish uncommitted failures/conflicts from committed
+durability errors. Retain failed drafts for explicit retry; never automatically
+repeat a mutation. Conflict reloads preserve drafts for review and do not submit
+them. Guard queued mutation, edit-opening, and confirmation messages with request
+identities so stale commands cannot affect a newer operation. Reserve viewport
+space for save/recovery notices.
+
 Run checks appropriate to the change:
 
 ```sh

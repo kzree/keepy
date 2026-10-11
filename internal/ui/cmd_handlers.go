@@ -77,53 +77,78 @@ func (r RootModel) handleWindowSizeMsg(msg tea.WindowSizeMsg) (RootModel, tea.Cm
 }
 
 func (r RootModel) handleSubmitEntry(msg entryform.SubmitEntryMsg) (RootModel, tea.Cmd) {
-	err := r.db.AddNewEntry(msg.Entry)
-	if err != nil {
-		return r, func() tea.Msg {
-			return entryform.SubmitFailedMsg{
-				Error: err,
-			}
-		}
+	if !r.list.AcceptsFormSubmission(msg.RequestID) {
+		return r, nil
 	}
-
-	r.list.SetEntries(r.db.GetEntriesFlat())
-	return r, func() tea.Msg {
-		return entryform.SubmitSuccessMsg{}
-	}
+	return r.finishFormSave(r.db.AddNewEntry(msg.Entry))
 }
 
 func (r RootModel) handleEditEntryRequestMsg(msg list.EditEntryRequestMsg) (RootModel, tea.Cmd) {
+	if !r.list.AcceptsEditOpen(msg.RequestID) {
+		return r, nil
+	}
 	password, err := r.db.GetEntryPassword(msg.Entry.ID)
 	if err != nil {
 		return r, func() tea.Msg {
-			return entryform.SubmitFailedMsg{Error: err}
+			return list.OpenEditEntryMsg{RequestID: msg.RequestID, Error: err}
 		}
 	}
 
 	return r, func() tea.Msg {
-		return list.OpenEditEntryMsg{Entry: msg.Entry, Password: password}
+		return list.OpenEditEntryMsg{RequestID: msg.RequestID, Entry: msg.Entry, Password: password}
 	}
 }
 
 func (r RootModel) handleSubmitEditEntry(msg entryform.SubmitEditEntryMsg) (RootModel, tea.Cmd) {
-	if err := r.db.UpdateEntry(msg.ID, msg.Entry); err != nil {
-		return r, func() tea.Msg {
-			return entryform.SubmitFailedMsg{Error: err}
-		}
+	if !r.list.AcceptsFormSubmission(msg.RequestID) {
+		return r, nil
+	}
+	return r.finishFormSave(r.db.UpdateEntry(msg.ID, msg.Entry))
+}
+
+func saveCommitted(err error) bool {
+	var outcome *service.SaveError
+	return err == nil || (errors.As(err, &outcome) && outcome.Committed())
+}
+
+// finishFormSave closes a form for every committed outcome. Reporting a committed
+// durability error as a form failure would offer a retry of an applied mutation.
+func (r RootModel) finishFormSave(err error) (RootModel, tea.Cmd) {
+	if !saveCommitted(err) {
+		var cmd tea.Cmd
+		r.list, cmd = r.list.Update(entryform.SubmitFailedMsg{Error: err})
+		return r, cmd
 	}
 
 	r.list.SetEntries(r.db.GetEntriesFlat())
-	return r, func() tea.Msg {
-		return entryform.SubmitSuccessMsg{}
-	}
+	var cmd tea.Cmd
+	r.list, cmd = r.list.Update(entryform.SubmitSuccessMsg{Warning: err})
+	return r, cmd
 }
 
 func (r RootModel) handleDeleteEntryRequestMsg(msg list.DeleteEntryRequestMsg) (RootModel, tea.Cmd) {
-	err := r.db.DeleteEntry(msg.ID)
-	if err != nil {
-		panic(err)
+	if !r.list.AcceptsDelete(msg.RequestID) {
+		return r, nil
 	}
-	r.list.SetEntries(r.db.GetEntriesFlat())
-
+	err := r.db.DeleteEntry(msg.ID)
+	if saveCommitted(err) {
+		r.list.SetEntries(r.db.GetEntriesFlat())
+	}
+	r.list, _ = r.list.Update(list.SaveResultMsg{Error: err})
 	return r, nil
+}
+
+// Reload is explicit and never repeats the conflicted mutation. Draft state is
+// owned by the form and retained for review against the newly authenticated data.
+func (r RootModel) handleReloadVault(msg list.ReloadVaultRequestMsg) (RootModel, tea.Cmd) {
+	if !r.list.AcceptsReload(msg.RequestID) {
+		return r, nil
+	}
+	err := r.db.ReAuthenticate()
+	if err == nil {
+		r.list.SetEntries(r.db.GetEntriesFlat())
+	}
+	var cmd tea.Cmd
+	r.list, cmd = r.list.Update(list.ReloadVaultResultMsg{Error: err})
+	return r, cmd
 }

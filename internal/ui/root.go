@@ -3,6 +3,7 @@ package ui
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"github.com/tobischo/gokeepasslib/v3"
 	"golang.design/x/clipboard"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
@@ -11,10 +12,22 @@ import (
 	"kzree.com/keepy/internal/ui/login"
 )
 
+// vaultSession keeps the UI dependent on operation outcomes, not persistence
+// internals. The production implementation is a shared *service.Vault.
+type vaultSession interface {
+	Authenticate(string, string, string, bool) error
+	ReAuthenticate() error
+	GetEntriesFlat() []service.VaultEntry
+	GetEntryPassword(gokeepasslib.UUID) (string, error)
+	AddNewEntry(service.NewVaultEntry) error
+	UpdateEntry(gokeepasslib.UUID, service.NewVaultEntry) error
+	DeleteEntry(gokeepasslib.UUID) error
+}
+
 type RootModel struct {
 	activeView screen
 
-	db  *service.Vault
+	db  vaultSession
 	cfg *service.Config
 
 	login login.LoginModel
@@ -68,6 +81,8 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case list.EditEntryRequestMsg:
 		return r.handleEditEntryRequestMsg(msg)
+	case list.ReloadVaultRequestMsg:
+		return r.handleReloadVault(msg)
 
 	case tea.KeyPressMsg:
 		if r, cmd, handled := r.handleKeyPressMsg(msg); handled {

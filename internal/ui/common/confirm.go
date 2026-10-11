@@ -11,16 +11,19 @@ import (
 type ConfirmPromptModel struct {
 	confirmCommand tea.Cmd
 	msg            string
+	requestID      uint64
 }
 
 type OpenConfirmMsg struct {
-	Msg string
-	Cmd tea.Cmd
+	RequestID uint64
+	Msg       string
+	Cmd       tea.Cmd
 }
 
 type CloseConfirmMsg struct {
-	Cmd     tea.Cmd
-	Success bool
+	RequestID uint64
+	Cmd       tea.Cmd
+	Success   bool
 }
 
 func NewConfirmPrompt() ConfirmPromptModel {
@@ -41,20 +44,23 @@ func (m ConfirmPromptModel) Update(msg tea.Msg) (ConfirmPromptModel, tea.Cmd) {
 			if m.confirmCommand != nil {
 				return m, func() tea.Msg {
 					return CloseConfirmMsg{
-						Cmd:     m.confirmCommand,
-						Success: true,
+						RequestID: m.requestID,
+						Cmd:       m.confirmCommand,
+						Success:   true,
 					}
 				}
 			}
 		case control.Cancel:
 			return m, func() tea.Msg {
 				return CloseConfirmMsg{
-					Cmd:     nil,
-					Success: false,
+					RequestID: m.requestID,
+					Cmd:       nil,
+					Success:   false,
 				}
 			}
 		}
 	case OpenConfirmMsg:
+		m.requestID = msg.RequestID
 		m.msg = msg.Msg
 		m.confirmCommand = msg.Cmd
 	}
