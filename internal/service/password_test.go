@@ -1,16 +1,16 @@
 package service
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGenerateRandomPasswordGeneratesGivenLengthString(t *testing.T) {
-	length := 16
-	pwd := GenerateRandomPassword(length)
-
-	assert.Len(t, pwd, length)
+	for _, length := range []int{1, 16, 24, 256} {
+		assert.Len(t, GenerateRandomPassword(length), length)
+	}
 }
 
 func TestGenerateRandomPasswordUsesAllowedCharacters(t *testing.T) {
@@ -21,20 +21,29 @@ func TestGenerateRandomPasswordUsesAllowedCharacters(t *testing.T) {
 	}
 }
 
-func TestGenerateRandomPasswordZeroLengthReturnsEmptyString(t *testing.T) {
-	assert.Empty(t, GenerateRandomPassword(0))
+func TestGenerateRandomPasswordNonpositiveLengthReturnsEmptyString(t *testing.T) {
+	for _, length := range []int{0, -1, -24} {
+		assert.Empty(t, GenerateRandomPassword(length))
+	}
 }
 
-func TestGenerateRandomPasswordCanUseEntireCharset(t *testing.T) {
-	seen := map[rune]bool{}
-
-	for range 2000 {
-		for _, char := range GenerateRandomPassword(64) {
-			seen[char] = true
-		}
+func TestPasswordByteMappingIsCompleteAndUnbiased(t *testing.T) {
+	// Exhaust every possible byte, proving each distinct alphabet character has
+	// exactly four preimages without relying on random sampling.
+	random := make([]byte, 256)
+	for i := range random {
+		random[i] = byte(i)
 	}
-
-	for _, char := range charset {
-		assert.Truef(t, seen[char], "expected generated passwords to include %q", char)
+	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-_"
+	assert.Len(t, alphabet, 64)
+	password := passwordFromRandomBytes(random)
+	assert.Equal(t, strings.Repeat(alphabet, 4), password)
+	counts := make(map[rune]int)
+	for _, char := range password {
+		counts[char]++
+	}
+	assert.Len(t, counts, 64)
+	for _, count := range counts {
+		assert.Equal(t, 4, count)
 	}
 }
