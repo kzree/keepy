@@ -1,11 +1,10 @@
 package service
 
 import (
-	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,35 +17,20 @@ import (
 const testVaultPassword = "vault-password"
 
 func TestConcurrentVaultOperationsPreserveCommittedEntries(t *testing.T) {
-	home := testutil.TempHome(t)
 	values := NewVaultEntry{Title: "Original", Password: "original-secret"}
 	original := values.ToKeepassEntry()
-	writeTestDatabase(t, filepath.Join(home, "vault.kdbx"), testVaultPassword, "", gokeepasslib.Group{
+	vault := newPersistedTestVault(t, gokeepasslib.Group{
 		Name: "Root", Entries: []gokeepasslib.Entry{original},
 	})
-	vault := NewVault()
-	require.NoError(t, vault.Authenticate("vault.kdbx", "", testVaultPassword, false))
 
 	const additions = 6
-	start := make(chan struct{})
-	errs := make(chan error, additions+3)
-	var workers sync.WaitGroup
-	run := func(f func() error) {
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
-			<-start
-			errs <- f()
-		}()
-	}
+	var operations []func() error
 	for i := range additions {
-		run(func() error {
+		operations = append(operations, func() error {
 			return vault.AddNewEntry(NewVaultEntry{Title: fmt.Sprintf("Entry %d", i), Password: "new-secret"})
 		})
 	}
-	run(vault.LockAndSave)
-	run(vault.ReAuthenticate)
-	run(func() error {
+	operations = append(operations, vault.LockAndSave, vault.ReAuthenticate, func() error {
 		for range 20 {
 			password, err := vault.GetEntryPassword(original.UUID)
 			if err != nil {
@@ -61,15 +45,9 @@ func TestConcurrentVaultOperationsPreserveCommittedEntries(t *testing.T) {
 		}
 		return nil
 	})
-	close(start)
-	workers.Wait()
-	close(errs)
-	for err := range errs {
-		require.NoError(t, err)
-	}
+	runConcurrentTestOperations(t, operations...)
 	require.Len(t, vault.GetEntriesFlat(), additions+1)
-	reopened := NewVault()
-	require.NoError(t, reopened.Authenticate("vault.kdbx", "", testVaultPassword, false))
+	reopened := authenticateTestVault(t, vault.dbPath, "")
 	require.Len(t, reopened.GetEntriesFlat(), additions+1)
 	assertEntryPassword(t, reopened, original.UUID, "original-secret")
 }
@@ -124,7 +102,7 @@ func TestAuthenticatePasswordOnlyLoadsAndUnlocksDatabase(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, vault.authenticated)
 	assert.NoError(t, vault.authError)
-	assert.Equal(t, "vault.kdbx", vault.dbPath)
+	assert.Equal(t, resolvedTestPath(t, filepath.Join(home, "vault.kdbx")), vault.dbPath)
 	assert.Equal(t, testVaultPassword, vault.password)
 	password, err := vault.GetEntryPassword(entry.UUID)
 	require.NoError(t, err)
@@ -134,7 +112,7 @@ func TestAuthenticatePasswordOnlyLoadsAndUnlocksDatabase(t *testing.T) {
 func TestAuthenticateWithPasswordAndKeyFile(t *testing.T) {
 	home := testutil.TempHome(t)
 	keyPath := filepath.Join(home, "vault.key")
-	require.NoError(t, os.WriteFile(keyPath, bytes.Repeat([]byte{0x2a}, 32), 0o600))
+	writeTestKeyFile(t, keyPath, 0x2a)
 	entry := newTestEntry("Example", "user@example.com", "secret", "https://example.com")
 	writeTestDatabase(t, filepath.Join(home, "vault.kdbx"), testVaultPassword, keyPath, gokeepasslib.Group{
 		Name:    "Root",
@@ -148,6 +126,91 @@ func TestAuthenticateWithPasswordAndKeyFile(t *testing.T) {
 	password, err := vault.GetEntryPassword(entry.UUID)
 	require.NoError(t, err)
 	assert.Equal(t, "secret", password)
+	assert.Equal(t, resolvedTestPath(t, keyPath), vault.keyFilePath)
+}
+
+func TestAuthenticateAbsolutePathsCapturesFileBaseline(t *testing.T) {
+	testutil.TempHome(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "vault.kdbx")
+	keyPath := filepath.Join(dir, "vault.key")
+	writeTestKeyFile(t, keyPath, 0x2a)
+	writeTestDatabase(t, path, testVaultPassword, keyPath, gokeepasslib.Group{Name: "Root"})
+	require.NoError(t, os.Chmod(path, 0o600))
+	data := readTestFile(t, path)
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	vault := authenticateTestVault(t, path, keyPath)
+	assert.Equal(t, resolvedTestPath(t, path), vault.dbPath)
+	require.NotNil(t, vault.baseline)
+	assert.Equal(t, sha256.Sum256(data), vault.baseline.fingerprint)
+	assert.Equal(t, info.Mode().Perm(), vault.baseline.mode)
+
+	// A baseline is a snapshot of authentication, not a live view of the file.
+	require.NoError(t, os.WriteFile(path, []byte("external change"), info.Mode().Perm()))
+	assert.Equal(t, sha256.Sum256(data), vault.baseline.fingerprint)
+	require.Error(t, vault.ReAuthenticate())
+	assert.Nil(t, vault.baseline, "failed authentication must invalidate the baseline")
+}
+
+func TestVaultPathsRemainStableWhenHomeChanges(t *testing.T) {
+	home := testutil.TempHome(t)
+	path := filepath.Join(home, "vault.kdbx")
+	keyPath := filepath.Join(home, "vault.key")
+	writeTestKeyFile(t, keyPath, 0x2a)
+	writeTestDatabase(t, path, testVaultPassword, keyPath, gokeepasslib.Group{Name: "Root"})
+	vault := authenticateTestVault(t, "~/vault.kdbx", "~/vault.key")
+	otherHome := testutil.TempHome(t)
+	require.NoError(t, vault.AddNewEntry(NewVaultEntry{Title: "Saved", Password: "secret"}))
+	require.NoError(t, vault.ReAuthenticate())
+	entries := vault.GetEntriesFlat()
+	require.Len(t, entries, 1)
+	assertEntryPassword(t, vault, entries[0].ID, "secret")
+	data := readTestFile(t, path)
+	assert.Equal(t, sha256.Sum256(data), vault.baseline.fingerprint)
+	_, err := os.Stat(filepath.Join(otherHome, "vault.kdbx"))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestVaultPinsDatabaseAndKeyFileSymlinkTargets(t *testing.T) {
+	home := testutil.TempHome(t)
+	path := filepath.Join(home, "target.kdbx")
+	otherPath := filepath.Join(home, "other.kdbx")
+	keyPath := filepath.Join(home, "target.key")
+	otherKeyPath := filepath.Join(home, "other.key")
+	writeTestKeyFile(t, keyPath, 0x2a)
+	writeTestKeyFile(t, otherKeyPath, 0x3b)
+	writeTestDatabase(t, path, testVaultPassword, keyPath, gokeepasslib.Group{Name: "Root"})
+	writeTestDatabase(t, otherPath, testVaultPassword, otherKeyPath, gokeepasslib.Group{Name: "Other"})
+	otherBytes := readTestFile(t, otherPath)
+	dbLink := filepath.Join(home, "vault.kdbx")
+	keyLink := filepath.Join(home, "vault.key")
+	symlinkTestFile(t, "target.kdbx", dbLink)
+	symlinkTestFile(t, "target.key", keyLink)
+	vault := authenticateTestVault(t, "vault.kdbx", "vault.key")
+	assert.Equal(t, resolvedTestPath(t, path), vault.dbPath)
+	assert.Equal(t, resolvedTestPath(t, keyPath), vault.keyFilePath)
+
+	// Changing the aliases must not redirect a save or reauthentication.
+	require.NoError(t, os.Remove(dbLink))
+	symlinkTestFile(t, "other.kdbx", dbLink)
+	require.NoError(t, os.Remove(keyLink))
+	symlinkTestFile(t, "other.key", keyLink)
+	require.NoError(t, vault.AddNewEntry(NewVaultEntry{Title: "Saved", Password: "secret"}))
+	require.NoError(t, vault.ReAuthenticate())
+	require.Len(t, vault.GetEntriesFlat(), 1)
+	assert.Equal(t, otherBytes, readTestFile(t, otherPath))
+	info, err := os.Lstat(dbLink)
+	require.NoError(t, err)
+	assert.NotZero(t, info.Mode()&os.ModeSymlink)
+}
+
+func TestAuthenticateRejectsDirectoryWithoutPublishingBaseline(t *testing.T) {
+	home := testutil.TempHome(t)
+	vault := NewVault()
+	require.Error(t, vault.Authenticate(home, "", testVaultPassword, false))
+	assert.False(t, vault.authenticated)
+	assert.Nil(t, vault.baseline)
 }
 
 func TestAuthenticateReturnsErrorForInvalidInputs(t *testing.T) {
@@ -183,10 +246,7 @@ func TestAuthenticateReturnsErrorForInvalidInputs(t *testing.T) {
 }
 
 func TestFailedAuthenticationClearsPreviousAuthenticatedState(t *testing.T) {
-	home := testutil.TempHome(t)
-	writeTestDatabase(t, filepath.Join(home, "vault.kdbx"), testVaultPassword, "", gokeepasslib.Group{Name: "Root"})
-	vault := NewVault()
-	require.NoError(t, vault.Authenticate("vault.kdbx", "", testVaultPassword, false))
+	vault := newPersistedTestVault(t, gokeepasslib.Group{Name: "Root"})
 
 	err := vault.Authenticate("vault.kdbx", "", "wrong-password", false)
 
@@ -297,14 +357,11 @@ func TestAddNewEntryReturnsErrorWhenVaultCannotAcceptEntry(t *testing.T) {
 }
 
 func TestAddNewEntryPersistsEntriesAndPreservesPasswordsAcrossSaves(t *testing.T) {
-	home := testutil.TempHome(t)
 	original := newTestEntry("Original", "original@example.com", "original-secret", "https://original.example")
-	writeTestDatabase(t, filepath.Join(home, "vault.kdbx"), testVaultPassword, "", gokeepasslib.Group{
+	vault := newPersistedTestVault(t, gokeepasslib.Group{
 		Name:    "Root",
 		Entries: []gokeepasslib.Entry{original},
 	})
-	vault := NewVault()
-	require.NoError(t, vault.Authenticate("vault.kdbx", "", testVaultPassword, false))
 
 	require.NoError(t, vault.AddNewEntry(NewVaultEntry{
 		Title: "Second", Username: "second@example.com", Password: "second-secret", URL: "https://second.example",
@@ -319,8 +376,7 @@ func TestAddNewEntryPersistsEntriesAndPreservesPasswordsAcrossSaves(t *testing.T
 		Title: "Third", Username: "third@example.com", Password: "third-secret", URL: "https://third.example",
 	}))
 
-	reopened := NewVault()
-	require.NoError(t, reopened.Authenticate("vault.kdbx", "", testVaultPassword, false))
+	reopened := authenticateTestVault(t, vault.dbPath, "")
 	entries = reopened.GetEntriesFlat()
 	require.Len(t, entries, 3)
 	assertEntryPassword(t, reopened, original.UUID, "original-secret")
@@ -337,22 +393,19 @@ func TestUpdateEntryReturnsErrorsForUnauthenticatedAndMissingEntries(t *testing.
 }
 
 func TestUpdateEntryUpdatesNestedEntryAndPersists(t *testing.T) {
-	home := testutil.TempHome(t)
 	original := newTestEntry("Original", "original@example.com", "original-secret", "https://original.example")
 	original.Get(PasswordKey).Value.Protected = wrappers.NewBoolWrapper(true)
 	original.Values = append(original.Values, gokeepasslib.ValueData{
 		Key:   "Notes",
 		Value: gokeepasslib.V{Content: "preserve me"},
 	})
-	writeTestDatabase(t, filepath.Join(home, "vault.kdbx"), testVaultPassword, "", gokeepasslib.Group{
+	vault := newPersistedTestVault(t, gokeepasslib.Group{
 		Name: "Root",
 		Groups: []gokeepasslib.Group{{
 			Name:    "Nested",
 			Entries: []gokeepasslib.Entry{original},
 		}},
 	})
-	vault := NewVault()
-	require.NoError(t, vault.Authenticate("vault.kdbx", "", testVaultPassword, false))
 	updated := NewVaultEntry{
 		Title:    "Updated",
 		Username: "updated@example.com",
@@ -362,8 +415,7 @@ func TestUpdateEntryUpdatesNestedEntryAndPersists(t *testing.T) {
 
 	require.NoError(t, vault.UpdateEntry(original.UUID, updated))
 
-	reopened := NewVault()
-	require.NoError(t, reopened.Authenticate("vault.kdbx", "", testVaultPassword, false))
+	reopened := authenticateTestVault(t, vault.dbPath, "")
 	entries := reopened.GetEntriesFlat()
 	require.Len(t, entries, 1)
 	assert.Equal(t, original.UUID, entries[0].ID)
@@ -384,10 +436,9 @@ func TestDeleteEntryReturnsErrorsForUnauthenticatedAndMissingEntries(t *testing.
 }
 
 func TestDeleteEntryRemovesNestedEntryAndPersists(t *testing.T) {
-	home := testutil.TempHome(t)
 	keep := newTestEntry("Keep", "keep@example.com", "keep-secret", "https://keep.example")
 	remove := newTestEntry("Remove", "remove@example.com", "remove-secret", "https://remove.example")
-	writeTestDatabase(t, filepath.Join(home, "vault.kdbx"), testVaultPassword, "", gokeepasslib.Group{
+	vault := newPersistedTestVault(t, gokeepasslib.Group{
 		Name:    "Root",
 		Entries: []gokeepasslib.Entry{keep},
 		Groups: []gokeepasslib.Group{{
@@ -395,13 +446,10 @@ func TestDeleteEntryRemovesNestedEntryAndPersists(t *testing.T) {
 			Entries: []gokeepasslib.Entry{remove},
 		}},
 	})
-	vault := NewVault()
-	require.NoError(t, vault.Authenticate("vault.kdbx", "", testVaultPassword, false))
 
 	require.NoError(t, vault.DeleteEntry(remove.UUID))
 
-	reopened := NewVault()
-	require.NoError(t, reopened.Authenticate("vault.kdbx", "", testVaultPassword, false))
+	reopened := authenticateTestVault(t, vault.dbPath, "")
 	entries := reopened.GetEntriesFlat()
 	require.Len(t, entries, 1)
 	assert.Equal(t, keep.UUID, entries[0].ID)
@@ -430,66 +478,19 @@ func TestLockAndSaveReturnsPersistenceErrors(t *testing.T) {
 	})
 
 	t.Run("create database file", func(t *testing.T) {
-		testutil.TempHome(t)
+		home := testutil.TempHome(t)
 		db := gokeepasslib.NewDatabase()
-		vault := &Vault{db: db, dbPath: filepath.Join("missing", "vault.kdbx")}
+		vault := &Vault{db: db, dbPath: filepath.Join(home, "missing", "vault.kdbx")}
 
 		require.Error(t, vault.LockAndSave())
 	})
 
 	t.Run("encode database", func(t *testing.T) {
-		testutil.TempHome(t)
+		home := testutil.TempHome(t)
 		db := gokeepasslib.NewDatabase()
 		db.Credentials = nil
-		vault := &Vault{db: db, dbPath: "vault.kdbx"}
+		vault := &Vault{db: db, dbPath: filepath.Join(home, "vault.kdbx")}
 
 		require.Error(t, vault.LockAndSave())
 	})
-}
-
-func newTestVault(groups ...gokeepasslib.Group) *Vault {
-	db := gokeepasslib.NewDatabase()
-	db.Content.Root.Groups = groups
-
-	return &Vault{
-		db:            db,
-		authenticated: true,
-	}
-}
-
-func newTestEntry(title, username, password, url string) gokeepasslib.Entry {
-	entry := gokeepasslib.NewEntry()
-	entry.Values = []gokeepasslib.ValueData{
-		{Key: "Title", Value: gokeepasslib.V{Content: title}},
-		{Key: UsernameKey, Value: gokeepasslib.V{Content: username}},
-		{Key: PasswordKey, Value: gokeepasslib.V{Content: password}},
-		{Key: URLKey, Value: gokeepasslib.V{Content: url}},
-	}
-	return entry
-}
-
-func writeTestDatabase(t *testing.T, path, password, keyFilePath string, groups ...gokeepasslib.Group) {
-	t.Helper()
-	db := gokeepasslib.NewDatabase()
-	if keyFilePath == "" {
-		db.Credentials = gokeepasslib.NewPasswordCredentials(password)
-	} else {
-		credentials, err := gokeepasslib.NewPasswordAndKeyCredentials(password, keyFilePath)
-		require.NoError(t, err)
-		db.Credentials = credentials
-	}
-	db.Content.Root.Groups = groups
-	require.NoError(t, db.LockProtectedEntries())
-
-	file, err := os.Create(path)
-	require.NoError(t, err)
-	require.NoError(t, gokeepasslib.NewEncoder(file).Encode(db))
-	require.NoError(t, file.Close())
-}
-
-func assertEntryPassword(t *testing.T, vault *Vault, id gokeepasslib.UUID, want string) {
-	t.Helper()
-	got, err := vault.GetEntryPassword(id)
-	require.NoError(t, err)
-	assert.Equal(t, want, got)
 }

@@ -34,6 +34,16 @@ func TestPathFromHome(t *testing.T) {
 			path: filepath.Join("vaults", "db.kdbx"),
 			want: filepath.Join(home, "vaults", "db.kdbx"),
 		},
+		{
+			name: "absolute path outside home",
+			path: filepath.Join(filepath.Dir(home), "elsewhere", "db.kdbx"),
+			want: filepath.Join(filepath.Dir(home), "elsewhere", "db.kdbx"),
+		},
+		{
+			name: "native home shorthand",
+			path: "~" + string(filepath.Separator) + filepath.Join("vaults", "db.kdbx"),
+			want: filepath.Join(home, "vaults", "db.kdbx"),
+		},
 	}
 
 	for _, tt := range tests {
@@ -44,6 +54,20 @@ func TestPathFromHome(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestPathFromHomeRejectsUnsupportedUserExpansion(t *testing.T) {
+	_, err := PathFromHome("~someone/vault.kdbx")
+	require.Error(t, err)
+}
+
+func TestPathFromHomeAbsolutePathDoesNotRequireHome(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "vault.kdbx")
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+	got, err := PathFromHome(path)
+	require.NoError(t, err)
+	assert.Equal(t, path, got)
 }
 
 func TestOpenOrCreateFileCreatesParentDirectories(t *testing.T) {

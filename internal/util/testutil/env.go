@@ -8,5 +8,6 @@ func TempHome(t *testing.T) string {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv(HomeEnv, home)
+	t.Setenv("USERPROFILE", home)
 	return home
 }

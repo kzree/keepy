@@ -2,8 +2,12 @@
 package service
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"errors"
+	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -70,8 +74,17 @@ type Vault struct {
 
 	db *gokeepasslib.Database
 
+	// baseline describes the exact bytes loaded during authentication. Future
+	// transactional saves will replace it only when the replacement commits.
+	baseline *vaultFileBaseline
+
 	authenticated bool
 	authError     error
+}
+
+type vaultFileBaseline struct {
+	fingerprint [sha256.Size]byte
+	mode        os.FileMode
 }
 
 func NewVault() *Vault {
@@ -89,6 +102,7 @@ func NewVault() *Vault {
 func (v *Vault) handleAuthError(err error) error {
 	v.authenticated = false
 	v.authError = err
+	v.baseline = nil
 	return err
 }
 
@@ -100,7 +114,7 @@ func (v *Vault) Authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 
 // authenticate requires v.mu to be held for writing.
 func (v *Vault) authenticate(dbPath, keyFilePath, password string, useKeyFile bool) error {
-	dbAbsPath, err := util.PathFromHome(dbPath)
+	dbAbsPath, err := resolveVaultPath(dbPath)
 	if err != nil {
 		return v.handleAuthError(err)
 	}
@@ -109,11 +123,24 @@ func (v *Vault) authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 		return v.handleAuthError(err)
 	}
 	defer file.Close()
-
+	info, err := file.Stat()
+	if err != nil {
+		return v.handleAuthError(err)
+	}
+	if !info.Mode().IsRegular() {
+		return v.handleAuthError(errors.New("database path must refer to a regular file"))
+	}
+	// Decode and fingerprint the same snapshot, not two separate reads of a
+	// path that another client may replace between reads.
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return v.handleAuthError(err)
+	}
 	db := gokeepasslib.NewDatabase()
+	resolvedKeyFile := keyFilePath
 
 	if useKeyFile {
-		keyFile, err := util.PathFromHome(keyFilePath)
+		keyFile, err := resolveVaultPath(keyFilePath)
 		if err != nil {
 			return v.handleAuthError(err)
 		}
@@ -123,10 +150,11 @@ func (v *Vault) authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 			return v.handleAuthError(err)
 		}
 		db.Credentials = creds
+		resolvedKeyFile = keyFile
 	} else {
 		db.Credentials = gokeepasslib.NewPasswordCredentials(password)
 	}
-	err = gokeepasslib.NewDecoder(file).Decode(db)
+	err = gokeepasslib.NewDecoder(bytes.NewReader(data)).Decode(db)
 	if err != nil {
 		return v.handleAuthError(err)
 	}
@@ -139,12 +167,30 @@ func (v *Vault) authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 	v.authenticated = true
 	v.authError = nil
 	v.db = db
-	v.dbPath = dbPath
-	v.keyFilePath = keyFilePath
+	v.dbPath = dbAbsPath
+	v.keyFilePath = resolvedKeyFile
+	v.baseline = &vaultFileBaseline{
+		fingerprint: sha256.Sum256(data),
+		mode:        info.Mode().Perm(),
+	}
 	v.password = password
 	v.useKeyFile = useKeyFile
 
 	return nil
+}
+
+// resolveVaultPath pins symlinks (including parent-directory symlinks) to their
+// current target so later writes and reauthentication use the opened location.
+func resolveVaultPath(path string) (string, error) {
+	expanded, err := util.PathFromHome(path)
+	if err != nil {
+		return "", err
+	}
+	abs, err := filepath.Abs(expanded)
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(abs)
 }
 
 func (v *Vault) ReAuthenticate() error {
@@ -304,8 +350,7 @@ func (v *Vault) lockAndSave() error {
 	if err := v.db.LockProtectedEntries(); err != nil {
 		return err
 	}
-	dbAbsPath, _ := util.PathFromHome(v.dbPath)
-	file, err := os.Create(dbAbsPath)
+	file, err := os.Create(v.dbPath)
 	if err != nil {
 		return err
 	}
