@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/tobischo/gokeepasslib/v3"
 	"github.com/tobischo/gokeepasslib/v3/wrappers"
@@ -57,7 +58,11 @@ func (e *NewVaultEntry) ToKeepassEntry() gokeepasslib.Entry {
 	return newEntry
 }
 
+// Vault owns one database session. Public methods serialize access to its state.
+// A Vault must not be copied after first use; share the pointer from NewVault.
 type Vault struct {
+	mu sync.RWMutex
+
 	dbPath      string
 	keyFilePath string
 	password    string
@@ -80,6 +85,7 @@ func NewVault() *Vault {
 	}
 }
 
+// handleAuthError requires v.mu to be held for writing.
 func (v *Vault) handleAuthError(err error) error {
 	v.authenticated = false
 	v.authError = err
@@ -87,6 +93,13 @@ func (v *Vault) handleAuthError(err error) error {
 }
 
 func (v *Vault) Authenticate(dbPath, keyFilePath, password string, useKeyFile bool) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.authenticate(dbPath, keyFilePath, password, useKeyFile)
+}
+
+// authenticate requires v.mu to be held for writing.
+func (v *Vault) authenticate(dbPath, keyFilePath, password string, useKeyFile bool) error {
 	dbAbsPath, err := util.PathFromHome(dbPath)
 	if err != nil {
 		return v.handleAuthError(err)
@@ -135,10 +148,14 @@ func (v *Vault) Authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 }
 
 func (v *Vault) ReAuthenticate() error {
-	return v.Authenticate(v.dbPath, v.keyFilePath, v.password, v.useKeyFile)
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.authenticate(v.dbPath, v.keyFilePath, v.password, v.useKeyFile)
 }
 
 func (v *Vault) GetEntriesFlat() []VaultEntry {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
 	if !v.authenticated {
 		return nil
 	}
@@ -153,6 +170,8 @@ func (v *Vault) GetEntriesFlat() []VaultEntry {
 }
 
 func (v *Vault) GetEntryPassword(id gokeepasslib.UUID) (string, error) {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
 	if !v.authenticated {
 		return "", nil
 	}
@@ -167,6 +186,8 @@ func (v *Vault) GetEntryPassword(id gokeepasslib.UUID) (string, error) {
 }
 
 func (v *Vault) AddNewEntry(entry NewVaultEntry) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
 	if !v.authenticated {
 		return errors.New("vault is not authenticated")
 	}
@@ -178,17 +199,19 @@ func (v *Vault) AddNewEntry(entry NewVaultEntry) error {
 	newEntry := entry.ToKeepassEntry()
 
 	v.db.Content.Root.Groups[0].Entries = append(v.db.Content.Root.Groups[0].Entries, newEntry)
-	return v.LockAndSave()
+	return v.lockAndSave()
 }
 
 func (v *Vault) UpdateEntry(id gokeepasslib.UUID, values NewVaultEntry) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
 	if !v.authenticated {
 		return errors.New("vault is not authenticated")
 	}
 
 	for i := range v.db.Content.Root.Groups {
 		if updateEntryByID(&v.db.Content.Root.Groups[i], id, values) {
-			return v.LockAndSave()
+			return v.lockAndSave()
 		}
 	}
 
@@ -233,6 +256,8 @@ func setEntryValue(entry *gokeepasslib.Entry, key, content string) {
 }
 
 func (v *Vault) DeleteEntry(id gokeepasslib.UUID) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
 	if !v.authenticated {
 		return errors.New("vault is not authenticated")
 	}
@@ -240,13 +265,15 @@ func (v *Vault) DeleteEntry(id gokeepasslib.UUID) error {
 	for i := range v.db.Content.Root.Groups {
 		found := v.findAndDeleteEntryByID(&v.db.Content.Root.Groups[i], id)
 		if found {
-			return v.LockAndSave()
+			return v.lockAndSave()
 		}
 	}
 
 	return errors.New("failed to find entry to delete")
 }
 
+// findAndDeleteEntryByID requires v.mu to be held for writing when group belongs
+// to the live database.
 func (v *Vault) findAndDeleteEntryByID(group *gokeepasslib.Group, id gokeepasslib.UUID) bool {
 	for i, entry := range group.Entries {
 		if entry.UUID.Compare(id) {
@@ -266,6 +293,14 @@ func (v *Vault) findAndDeleteEntryByID(group *gokeepasslib.Group, id gokeepassli
 }
 
 func (v *Vault) LockAndSave() error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.lockAndSave()
+}
+
+// lockAndSave requires v.mu to be held for writing. This legacy implementation
+// does not yet provide transactional rollback or atomic file replacement.
+func (v *Vault) lockAndSave() error {
 	if err := v.db.LockProtectedEntries(); err != nil {
 		return err
 	}

@@ -2,8 +2,10 @@ package service
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +16,63 @@ import (
 )
 
 const testVaultPassword = "vault-password"
+
+func TestConcurrentVaultOperationsPreserveCommittedEntries(t *testing.T) {
+	home := testutil.TempHome(t)
+	values := NewVaultEntry{Title: "Original", Password: "original-secret"}
+	original := values.ToKeepassEntry()
+	writeTestDatabase(t, filepath.Join(home, "vault.kdbx"), testVaultPassword, "", gokeepasslib.Group{
+		Name: "Root", Entries: []gokeepasslib.Entry{original},
+	})
+	vault := NewVault()
+	require.NoError(t, vault.Authenticate("vault.kdbx", "", testVaultPassword, false))
+
+	const additions = 6
+	start := make(chan struct{})
+	errs := make(chan error, additions+3)
+	var workers sync.WaitGroup
+	run := func(f func() error) {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			<-start
+			errs <- f()
+		}()
+	}
+	for i := range additions {
+		run(func() error {
+			return vault.AddNewEntry(NewVaultEntry{Title: fmt.Sprintf("Entry %d", i), Password: "new-secret"})
+		})
+	}
+	run(vault.LockAndSave)
+	run(vault.ReAuthenticate)
+	run(func() error {
+		for range 20 {
+			password, err := vault.GetEntryPassword(original.UUID)
+			if err != nil {
+				return err
+			}
+			if password != "original-secret" {
+				return fmt.Errorf("reader observed a changed protected password")
+			}
+			if len(vault.GetEntriesFlat()) == 0 {
+				return fmt.Errorf("reader observed an empty vault")
+			}
+		}
+		return nil
+	})
+	close(start)
+	workers.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	require.Len(t, vault.GetEntriesFlat(), additions+1)
+	reopened := NewVault()
+	require.NoError(t, reopened.Authenticate("vault.kdbx", "", testVaultPassword, false))
+	require.Len(t, reopened.GetEntriesFlat(), additions+1)
+	assertEntryPassword(t, reopened, original.UUID, "original-secret")
+}
 
 func TestNewVaultInitializesUnauthenticatedVault(t *testing.T) {
 	vault := NewVault()
