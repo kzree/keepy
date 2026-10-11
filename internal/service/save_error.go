@@ -21,8 +21,9 @@ const (
 
 // SaveError describes a transactional save outcome and preserves its cause for
 // errors.Is/errors.As. Op must describe an operation, never credentials or entry
-// contents. These outcomes are reserved for the future transaction pipeline;
-// the legacy LockAndSave implementation does not yet satisfy their guarantees.
+// contents. Guarded persistence checks report uncommitted failures/conflicts.
+// The legacy LockAndSave implementation is not wired to those checks and does
+// not yet satisfy transactional save guarantees.
 type SaveError struct {
 	Kind SaveErrorKind
 	Op   string

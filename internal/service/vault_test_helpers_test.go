@@ -139,6 +139,7 @@ type faultVaultTempFile struct {
 	writeOnce  bool
 	shortWrite bool
 	chmodErr   error
+	statErr    error
 	syncErr    error
 	closeErr   error
 	closes     int
@@ -188,6 +189,13 @@ func (f *faultVaultTempFile) Sync() error {
 	return f.vaultTempFile.Sync()
 }
 
+func (f *faultVaultTempFile) Stat() (os.FileInfo, error) {
+	if f.statErr != nil {
+		return nil, f.statErr
+	}
+	return f.vaultTempFile.Stat()
+}
+
 func (f *faultVaultTempFile) Close() error {
 	f.closes++
 	return errors.Join(f.vaultTempFile.Close(), f.closeErr)
@@ -195,10 +203,11 @@ func (f *faultVaultTempFile) Close() error {
 
 type faultVaultReadFile struct {
 	vaultReadFile
-	statErr  error
-	readErr  error
-	closeErr error
-	closes   int
+	statErr    error
+	readErr    error
+	closeErr   error
+	closes     int
+	afterClose func() error
 }
 
 func (f *faultVaultReadFile) Stat() (os.FileInfo, error) {
@@ -217,7 +226,28 @@ func (f *faultVaultReadFile) Read(data []byte) (int, error) {
 
 func (f *faultVaultReadFile) Close() error {
 	f.closes++
-	return errors.Join(f.vaultReadFile.Close(), f.closeErr)
+	err := errors.Join(f.vaultReadFile.Close(), f.closeErr)
+	if f.afterClose != nil {
+		err = errors.Join(err, f.afterClose())
+	}
+	return err
+}
+
+func replaceTestFile(t *testing.T, path string, data []byte, mode os.FileMode) {
+	t.Helper()
+	replacement := path + ".external"
+	require.NoError(t, os.WriteFile(replacement, data, mode))
+	committed, err := replaceVaultFile(replacement, path)
+	require.NoError(t, err)
+	require.True(t, committed)
+}
+
+func requireSaveErrorKind(t *testing.T, err error, kind SaveErrorKind) {
+	t.Helper()
+	var outcome *SaveError
+	require.ErrorAs(t, err, &outcome)
+	require.Equal(t, kind, outcome.Kind)
+	require.Equal(t, kind == SaveDurabilityUncertain, outcome.Committed())
 }
 
 func snapshotTestDatabase(t *testing.T, db *gokeepasslib.Database) []byte {

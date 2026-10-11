@@ -107,7 +107,7 @@ func TestVaultPersistencePreparesFileWithoutChangingDestination(t *testing.T) {
 
 func TestVaultPersistencePreparationFailuresPreserveDestinationAndCleanUp(t *testing.T) {
 	cause := errors.New("injected preparation failure")
-	for _, operation := range []string{"create", "encode", "write", "chmod", "sync", "close"} {
+	for _, operation := range []string{"create", "encode", "write", "chmod", "sync", "stat", "close"} {
 		t.Run(operation, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "vault.kdbx")
 			original := []byte("original database")
@@ -123,6 +123,8 @@ func TestVaultPersistencePreparationFailuresPreserveDestinationAndCleanUp(t *tes
 				file.chmodErr = cause
 			case "sync":
 				file.syncErr = cause
+			case "stat":
+				file.statErr = cause
 			case "close":
 				file.closeErr = cause
 			}
@@ -271,6 +273,21 @@ func TestVaultCommitPreservesPermissions(t *testing.T) {
 	replacedInfo, err := os.Stat(path)
 	require.NoError(t, err)
 	assert.Equal(t, info.Mode().Perm(), replacedInfo.Mode().Perm())
+}
+
+func TestPreparedBaselineCapturesActualPermissionsAndIdentity(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "vault.kdbx")
+	prepared, err := newVaultPersistence().prepare(path, 0o600, func(w io.Writer) error {
+		_, err := w.Write([]byte("prepared database"))
+		return err
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { prepared.discard() })
+	info, err := os.Stat(prepared.path)
+	require.NoError(t, err)
+	// In particular, Windows does not represent a requested 0600 literally.
+	assert.Equal(t, info.Mode().Perm(), prepared.baseline.mode)
+	assert.True(t, os.SameFile(info, prepared.baseline.info))
 }
 
 func TestVaultAtomicReplacementKeePassRoundTrip(t *testing.T) {

@@ -12,6 +12,9 @@ import (
 type vaultFileBaseline struct {
 	fingerprint [sha256.Size]byte
 	mode        os.FileMode
+	// Captured by File.Stat while the handle is open. In particular, Windows
+	// path-based Stat can defer fetching identity until after the path changes.
+	info os.FileInfo
 }
 
 type vaultFileSnapshot struct {
@@ -29,6 +32,7 @@ type vaultReadFile interface {
 type vaultTempFile interface {
 	io.Writer
 	Name() string
+	Stat() (os.FileInfo, error)
 	Chmod(os.FileMode) error
 	Sync() error
 	Close() error
@@ -42,6 +46,7 @@ type vaultPersistence struct {
 	open       func(string) (vaultReadFile, error)
 	createTemp func(string, string) (vaultTempFile, error)
 	remove     func(string) error
+	lstat      func(string) (os.FileInfo, error)
 	// replace reports namespace commitment independently of post-commit errors.
 	// Implementations must never delete the destination first or fall back to
 	// copying. Hooks returning committed=false must leave the destination intact.
@@ -56,6 +61,7 @@ func newVaultPersistence() *vaultPersistence {
 			return os.CreateTemp(dir, pattern)
 		},
 		remove:        os.Remove,
+		lstat:         os.Lstat,
 		replace:       replaceVaultFile,
 		syncDirectory: syncVaultDirectory,
 	}
@@ -79,7 +85,7 @@ func (p *vaultPersistence) read(path string) (snapshot *vaultFileSnapshot, err e
 		return nil, persistenceError("stat database", err)
 	}
 	if !info.Mode().IsRegular() {
-		return nil, errors.New("database path must refer to a regular file")
+		return nil, errVaultNotRegular
 	}
 	data, err := io.ReadAll(file)
 	if err != nil {
@@ -90,6 +96,7 @@ func (p *vaultPersistence) read(path string) (snapshot *vaultFileSnapshot, err e
 		baseline: vaultFileBaseline{
 			fingerprint: sha256.Sum256(data),
 			mode:        info.Mode().Perm(),
+			info:        info,
 		},
 	}, nil
 }
@@ -98,7 +105,11 @@ func (p *vaultPersistence) read(path string) (snapshot *vaultFileSnapshot, err e
 // succeeds. It is used serially by its owner, not shared between goroutines.
 type preparedVaultFile struct {
 	path        string
+	destination string
 	baseline    vaultFileBaseline
+	// expected is an immutable snapshot of the baseline at preparation time.
+	// Only prepareChecked sets it; raw prepare is a filesystem primitive.
+	expected    *vaultFileBaseline
 	persistence *vaultPersistence
 }
 
@@ -106,6 +117,10 @@ type preparedVaultFile struct {
 // it closes and removes the temporary file, preserving cleanup errors alongside
 // the primary cause. On success, the caller must replace or discard the result.
 func (p *vaultPersistence) prepare(destination string, mode os.FileMode, encode func(io.Writer) error) (prepared *preparedVaultFile, err error) {
+	destination, err = filepath.Abs(destination)
+	if err != nil {
+		return nil, persistenceError("resolve database destination", err)
+	}
 	file, err := p.createTemp(filepath.Dir(destination), ".keepy-*.tmp")
 	if err != nil {
 		return nil, persistenceError("create temporary database", err)
@@ -137,6 +152,10 @@ func (p *vaultPersistence) prepare(destination string, mode os.FileMode, encode 
 	if err := file.Sync(); err != nil {
 		return nil, persistenceError("sync temporary database", err)
 	}
+	info, err := file.Stat()
+	if err != nil {
+		return nil, persistenceError("stat temporary database", err)
+	}
 	closed = true
 	if err := file.Close(); err != nil {
 		return nil, persistenceError("close temporary database", err)
@@ -144,10 +163,12 @@ func (p *vaultPersistence) prepare(destination string, mode os.FileMode, encode 
 	var fingerprint [sha256.Size]byte
 	copy(fingerprint[:], hash.Sum(nil))
 	return &preparedVaultFile{
-		path: path,
+		path:        path,
+		destination: destination,
 		baseline: vaultFileBaseline{
 			fingerprint: fingerprint,
-			mode:        mode.Perm(),
+			mode:        info.Mode().Perm(),
+			info:        info,
 		},
 		persistence: p,
 	}, nil
@@ -176,7 +197,8 @@ func (w *vaultEncodingWriter) Write(data []byte) (int, error) {
 // when a subsequent platform flush/close fails. A committed result must never be
 // retried as a mutation. It does not sync the parent directory or publish live
 // state; the transaction owner must publish the matching state before returning
-// a committed error. Its errors are plain errors, not SaveError outcomes.
+// a committed error. Filesystem errors are plain errors; guarded baseline checks
+// return uncommitted SaveError outcomes.
 func (f *preparedVaultFile) replace(destination string) (committed bool, err error) {
 	if f.path == "" {
 		return false, errors.New("temporary database already consumed")
@@ -193,6 +215,22 @@ func (f *preparedVaultFile) replace(destination string) (committed bool, err err
 	}
 	if fromDir != toDir {
 		return false, errors.New("database replacement must stay in the prepared directory")
+	}
+	intended, err := filepath.Abs(f.destination)
+	if err != nil {
+		return false, err
+	}
+	actual, err := filepath.Abs(destination)
+	if err != nil {
+		return false, err
+	}
+	if intended != actual {
+		return false, errors.New("replacement destination differs from the prepared database")
+	}
+	if f.expected != nil {
+		if err := f.persistence.checkBaseline(destination, *f.expected); err != nil {
+			return false, err
+		}
 	}
 	committed, err = f.persistence.replace(f.path, destination)
 	if committed {
