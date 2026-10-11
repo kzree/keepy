@@ -131,6 +131,20 @@ func assertEntryPassword(t *testing.T, vault *Vault, id gokeepasslib.UUID, want 
 	assert.Equal(t, want, got)
 }
 
+func runTestVaultMutation(vault *Vault, operation string, id gokeepasslib.UUID) error {
+	values := NewVaultEntry{Title: "Changed", Username: "changed user", Password: "changed secret"}
+	switch operation {
+	case "add":
+		return vault.AddNewEntry(values)
+	case "update":
+		return vault.UpdateEntry(id, values)
+	case "delete":
+		return vault.DeleteEntry(id)
+	default:
+		return vault.LockAndSave()
+	}
+}
+
 // faultVaultTempFile delegates to a real temporary file except at the selected
 // failure points, keeping tests independent of host filesystem restrictions.
 type faultVaultTempFile struct {

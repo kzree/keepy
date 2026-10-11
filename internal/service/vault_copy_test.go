@@ -165,16 +165,23 @@ func TestEncodingFailureLeavesLivePasswordsAndMetadataUnchanged(t *testing.T) {
 	for _, version := range []int{3, 4} {
 		t.Run(fmt.Sprintf("KDBX%d", version), func(t *testing.T) {
 			live := richTestDatabase(t, version)
+			path := filepath.Join(t.TempDir(), "vault.kdbx")
+			encoding, err := encodingVaultCopy(live)
+			require.NoError(t, err)
+			var data bytes.Buffer
+			require.NoError(t, gokeepasslib.NewEncoder(&data).Encode(encoding))
+			require.NoError(t, os.WriteFile(path, data.Bytes(), 0o600))
+			snapshot, err := newVaultPersistence().read(path)
+			require.NoError(t, err)
 			live.Credentials = nil // Fail after the encoder has locked fields and cleaned attachments.
-			vault := &Vault{db: live, authenticated: true, dbPath: filepath.Join(t.TempDir(), "vault.kdbx")}
+			vault := &Vault{db: live, authenticated: true, dbPath: path, baseline: &snapshot.baseline}
 			before := snapshotTestDatabase(t, live)
-			err := vault.UpdateEntry(live.Content.Root.Groups[0].Groups[0].Entries[0].UUID, NewVaultEntry{Title: "Changed", Password: "changed"})
+			err = vault.UpdateEntry(live.Content.Root.Groups[0].Groups[0].Entries[0].UUID, NewVaultEntry{Title: "Changed", Password: "changed"})
 			require.Error(t, err)
+			requireSaveErrorKind(t, err, SaveFailed)
 			assert.Same(t, live, vault.db)
 			assert.Equal(t, before, snapshotTestDatabase(t, live))
-			// File rollback is a later task: this test verifies in-memory isolation.
-			_, err = os.Stat(vault.dbPath)
-			require.NoError(t, err)
+			assert.Equal(t, data.Bytes(), readTestFile(t, path))
 		})
 	}
 }

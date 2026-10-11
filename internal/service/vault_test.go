@@ -469,30 +469,25 @@ func TestFindAndDeleteEntryByIDRemovesDirectEntry(t *testing.T) {
 }
 
 func TestLockAndSaveReturnsPersistenceErrors(t *testing.T) {
+	t.Run("unauthenticated", func(t *testing.T) {
+		require.EqualError(t, NewVault().LockAndSave(), "vault is not authenticated")
+	})
 	t.Run("lock protected entries", func(t *testing.T) {
-		db := gokeepasslib.NewDatabase()
-		db.Header.Signature = nil
-		vault := &Vault{db: db}
+		vault := newPersistedTestVault(t, gokeepasslib.Group{Name: "Root"})
+		vault.db.Header.Signature = nil
 
 		require.Error(t, vault.LockAndSave())
 	})
 
-	t.Run("create database file", func(t *testing.T) {
-		home := testutil.TempHome(t)
-		db := gokeepasslib.NewDatabase()
-		db.Content.Root.Groups = []gokeepasslib.Group{{Name: "Root"}}
-		vault := &Vault{db: db, dbPath: filepath.Join(home, "missing", "vault.kdbx")}
-
-		require.Error(t, vault.LockAndSave())
+	t.Run("missing baseline", func(t *testing.T) {
+		vault := newPersistedTestVault(t, gokeepasslib.Group{Name: "Root"})
+		vault.baseline = nil
+		requireSaveErrorKind(t, vault.LockAndSave(), SaveFailed)
 	})
 
 	t.Run("encode database", func(t *testing.T) {
-		home := testutil.TempHome(t)
-		db := gokeepasslib.NewDatabase()
-		db.Content.Root.Groups = []gokeepasslib.Group{{Name: "Root"}}
-		db.Credentials = nil
-		vault := &Vault{db: db, dbPath: filepath.Join(home, "vault.kdbx")}
-
-		require.Error(t, vault.LockAndSave())
+		vault := newPersistedTestVault(t, gokeepasslib.Group{Name: "Root"})
+		vault.db.Credentials = nil
+		requireSaveErrorKind(t, vault.LockAndSave(), SaveFailed)
 	})
 }

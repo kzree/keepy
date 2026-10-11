@@ -4,7 +4,7 @@ package service
 import (
 	"bytes"
 	"errors"
-	"os"
+	"io"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -74,8 +74,8 @@ type Vault struct {
 
 	persistence *vaultPersistence
 
-	// baseline describes the exact bytes loaded during authentication. Future
-	// transactional saves will replace it only when the replacement commits.
+	// baseline describes the authenticated or last committed file. Saves update
+	// it only when replacement commits, including durability-uncertain outcomes.
 	baseline *vaultFileBaseline
 
 	authenticated bool
@@ -330,38 +330,61 @@ func (v *Vault) findAndDeleteEntryByID(group *gokeepasslib.Group, id gokeepassli
 	return false
 }
 
+// LockAndSave transactionally saves an authenticated vault without a CRUD
+// mutation. Protected values remain unlocked in live state. A SaveError whose
+// Committed method returns true means the file and live state already changed.
 func (v *Vault) LockAndSave() error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	return v.lockAndSave()
 }
 
-// lockAndSave requires v.mu to be held for writing. This legacy implementation
-// does not yet provide transactional rollback or atomic file replacement.
+// lockAndSave requires v.mu to be held for writing.
 func (v *Vault) lockAndSave() error {
-	return v.saveWorkingDatabase(v.db)
+	if !v.authenticated {
+		return errors.New("vault is not authenticated")
+	}
+	return v.saveWorkingDatabase(copyVaultDatabase(v.db))
 }
 
 // saveWorkingDatabase requires v.mu to be held for writing. Only the separate
-// encoding copy is locked or changed by the encoder. A successful write publishes
-// the unlocked working state; failures discard it. This legacy writer still
-// truncates the destination and does not provide file rollback or atomic commit.
+// encoding copy is locked or changed by the encoder. Pre-commit failures preserve
+// live state and the destination. Every committed result publishes the unlocked
+// working state and baseline before releasing the lock, even on durability error.
+// Callers must not automatically retry a mutation with a committed outcome.
 func (v *Vault) saveWorkingDatabase(working *gokeepasslib.Database) error {
 	encoding, err := encodingVaultCopy(working)
 	if err != nil {
 		return err
 	}
-	file, err := os.Create(v.dbPath)
+	if v.baseline == nil {
+		return &SaveError{Kind: SaveFailed, Op: "prepare database", Err: errors.New("database baseline is unavailable")}
+	}
+	prepared, err := v.persistenceBackend().prepareChecked(v.dbPath, *v.baseline, func(w io.Writer) error {
+		return gokeepasslib.NewEncoder(w).Encode(encoding)
+	})
 	if err != nil {
+		return uncommittedSaveError(err)
+	}
+	committed, err := prepared.commitAndUpdateBaseline(v.dbPath, v.baseline)
+	if committed {
+		v.db = working
+		if err != nil {
+			return &SaveError{Kind: SaveDurabilityUncertain, Op: "commit database", Err: err}
+		}
+		return nil
+	}
+	return uncommittedSaveError(err)
+}
+
+// uncommittedSaveError preserves guarded conflict classification and all joined
+// cleanup causes; filesystem failures receive the transactional failure outcome.
+func uncommittedSaveError(err error) error {
+	var outcome *SaveError
+	if errors.As(err, &outcome) {
 		return err
 	}
-	defer file.Close()
-	err = gokeepasslib.NewEncoder(file).Encode(encoding)
-	if err := errors.Join(err, file.Close()); err != nil {
-		return err
-	}
-	v.db = working
-	return nil
+	return &SaveError{Kind: SaveFailed, Op: "prepare or replace database", Err: err}
 }
 
 func findEntryPassword(group gokeepasslib.Group, id gokeepasslib.UUID) (string, bool) {
