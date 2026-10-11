@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,7 +14,7 @@ import (
 
 func TestVaultTransactionsRollBackAndRetry(t *testing.T) {
 	for _, operation := range []string{"add", "update", "delete", "save"} {
-		for _, failure := range []string{"create", "write", "sync", "close", "replace"} {
+		for _, failure := range []string{"create", "write", "chmod", "sync", "stat", "close", "replace"} {
 			t.Run(operation+"/"+failure, func(t *testing.T) {
 				entry := (&NewVaultEntry{Title: "Original", Password: "secret"}).ToKeepassEntry()
 				vault := newPersistedTestVault(t, gokeepasslib.Group{Name: "Root", Entries: []gokeepasslib.Entry{entry}})
@@ -36,8 +37,12 @@ func TestVaultTransactionsRollBackAndRetry(t *testing.T) {
 					switch failure {
 					case "write":
 						fault.writeErr = cause
+					case "chmod":
+						fault.chmodErr = cause
 					case "sync":
 						fault.syncErr = cause
+					case "stat":
+						fault.statErr = cause
 					case "close":
 						fault.closeErr = cause
 					}
@@ -54,9 +59,7 @@ func TestVaultTransactionsRollBackAndRetry(t *testing.T) {
 				assert.Equal(t, baseline, *vault.baseline)
 				assert.Equal(t, original, readTestFile(t, vault.dbPath))
 				assertEntryPassword(t, vault, entry.UUID, "secret")
-				temps, err := filepath.Glob(filepath.Join(filepath.Dir(vault.dbPath), ".keepy-*.tmp"))
-				require.NoError(t, err)
-				assert.Empty(t, temps)
+				assertNoVaultTemps(t, vault.dbPath)
 				vault.persistence = newVaultPersistence()
 				require.NoError(t, runTestVaultMutation(vault, operation, entry.UUID))
 				reopened := authenticateTestVault(t, vault.dbPath, "")
@@ -77,6 +80,81 @@ func TestVaultTransactionsRollBackAndRetry(t *testing.T) {
 				case "save":
 					assertEntryPassword(t, reopened, entry.UUID, "secret")
 				}
+			})
+		}
+	}
+}
+
+func TestVaultTransactionsPreserveKeePassDataAndPermissions(t *testing.T) {
+	for _, version := range []int{3, 4} {
+		for _, operation := range []string{"add", "update", "delete", "save"} {
+			t.Run(fmt.Sprintf("KDBX%d/%s", version, operation), func(t *testing.T) {
+				source := richTestDatabase(t, version)
+				// Use a password-only fixture so authentication exercises the public API.
+				source.Credentials = gokeepasslib.NewPasswordCredentials(testVaultPassword)
+				path := filepath.Join(t.TempDir(), "vault.kdbx")
+				writeTestVaultDatabase(t, path, source)
+				vault := authenticateTestVault(t, path, "")
+				before := copyVaultDatabase(vault.db)
+				entry := before.Content.Root.Groups[0].Groups[0].Entries[0]
+				originalInfo, err := os.Stat(path)
+				require.NoError(t, err)
+				require.NoError(t, runTestVaultMutation(vault, operation, entry.UUID))
+				reopened := authenticateTestVault(t, path, "")
+				info, err := os.Stat(path)
+				require.NoError(t, err)
+				assert.Equal(t, originalInfo.Mode().Perm(), info.Mode().Perm())
+				assert.Equal(t, vault.baseline.mode, info.Mode().Perm())
+				assertVaultFormatAndMetadata(t, before, reopened.db)
+				assert.Equal(t, before.Content.Root.DeletedObjects, reopened.db.Content.Root.DeletedObjects)
+				assert.Equal(t, before.Header.FileHeaders.PublicCustomData, reopened.db.Header.FileHeaders.PublicCustomData)
+				assertNoVaultTemps(t, path)
+				assert.Equal(t, before.Content.Root.Groups[0].UUID, reopened.db.Content.Root.Groups[0].UUID)
+				nested := reopened.db.Content.Root.Groups[0].Groups[0]
+				assert.Equal(t, before.Content.Root.Groups[0].Groups[0].UUID, nested.UUID)
+				assert.Equal(t, "preserve group notes", nested.Notes)
+				if operation == "add" {
+					added := reopened.db.Content.Root.Groups[0].Entries
+					require.Len(t, added, 1)
+					assert.NotEqual(t, entry.UUID, added[0].UUID)
+					assert.Equal(t, "Changed", added[0].GetTitle())
+					assert.Equal(t, "changed user", added[0].GetContent(UsernameKey))
+					assert.Equal(t, "", added[0].GetContent(URLKey))
+					assertEntryPassword(t, vault, added[0].UUID, "changed secret")
+					assertEntryPassword(t, reopened, added[0].UUID, "changed secret")
+				}
+				if operation == "delete" {
+					assert.Empty(t, nested.Entries)
+				} else {
+					require.Len(t, nested.Entries, 1)
+					result := nested.Entries[0]
+					if operation == "update" {
+						assert.Equal(t, "Changed", result.GetTitle())
+						assert.Equal(t, "changed secret", result.GetPassword())
+					} else {
+						assert.Equal(t, "Original", result.GetTitle())
+						assert.Equal(t, "secret", result.GetPassword())
+					}
+					assert.Equal(t, entry.UUID, result.UUID)
+					assert.Equal(t, "custom secret", result.GetContent("Custom secret"))
+					assert.Equal(t, entry.Histories, result.Histories)
+					assert.Equal(t, entry.AutoType, result.AutoType)
+					assert.Equal(t, entry.CustomData, result.CustomData)
+					assert.Equal(t, entry.Times, result.Times)
+					assert.Equal(t, entry.Tags, result.Tags)
+					assert.Equal(t, entry.CustomIconUUID, result.CustomIconUUID)
+					require.Len(t, result.Binaries, 1)
+					attachment := reopened.db.FindBinary(result.Binaries[0].Value.ID)
+					require.NotNil(t, attachment)
+					data, err := attachment.GetContentBytes()
+					require.NoError(t, err)
+					assert.Equal(t, []byte{0xff, 0x00, 0x01, 0x02}, data)
+				}
+				// Repeated saves must retain unlocked protected values and format metadata.
+				require.NoError(t, vault.LockAndSave())
+				savedAgain := authenticateTestVault(t, path, "")
+				assert.Equal(t, reopened.db.Content.Root.Groups, savedAgain.db.Content.Root.Groups)
+				assertVaultFormatAndMetadata(t, before, savedAgain.db)
 			})
 		}
 	}
@@ -106,6 +184,7 @@ func TestVaultTransactionsPreserveExternalChanges(t *testing.T) {
 				assert.Equal(t, live, snapshotTestDatabase(t, vault.db))
 				assert.Equal(t, baseline, *vault.baseline)
 				assert.Equal(t, external, readTestFile(t, vault.dbPath))
+				assertNoVaultTemps(t, vault.dbPath)
 				assertEntryPassword(t, vault, entry.UUID, "secret")
 			})
 		}

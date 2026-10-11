@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/xml"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -166,11 +165,8 @@ func TestEncodingFailureLeavesLivePasswordsAndMetadataUnchanged(t *testing.T) {
 		t.Run(fmt.Sprintf("KDBX%d", version), func(t *testing.T) {
 			live := richTestDatabase(t, version)
 			path := filepath.Join(t.TempDir(), "vault.kdbx")
-			encoding, err := encodingVaultCopy(live)
-			require.NoError(t, err)
-			var data bytes.Buffer
-			require.NoError(t, gokeepasslib.NewEncoder(&data).Encode(encoding))
-			require.NoError(t, os.WriteFile(path, data.Bytes(), 0o600))
+			writeTestVaultDatabase(t, path, live)
+			data := readTestFile(t, path)
 			snapshot, err := newVaultPersistence().read(path)
 			require.NoError(t, err)
 			live.Credentials = nil // Fail after the encoder has locked fields and cleaned attachments.
@@ -181,7 +177,8 @@ func TestEncodingFailureLeavesLivePasswordsAndMetadataUnchanged(t *testing.T) {
 			requireSaveErrorKind(t, err, SaveFailed)
 			assert.Same(t, live, vault.db)
 			assert.Equal(t, before, snapshotTestDatabase(t, live))
-			assert.Equal(t, data.Bytes(), readTestFile(t, path))
+			assert.Equal(t, data, readTestFile(t, path))
+			assertNoVaultTemps(t, path)
 		})
 	}
 }

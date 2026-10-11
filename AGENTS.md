@@ -99,6 +99,11 @@ For locking or concurrency changes, also run `go test -race ./...` or the releva
 package under the race detector. Before committing, check `git diff --check`.
 Documentation-only changes do not require Go tests.
 
+The test workflow runs tests, race tests, and vet on native Linux, macOS, and
+Windows runners, using the Go version in `go.mod`. Keep the platform checks
+alongside the existing Linux coverage job. Cross-compilation does not substitute
+for native runtime verification of persistence behavior.
+
 ## Commits
 
 - Commit only when the user requests it; do not push unless requested.

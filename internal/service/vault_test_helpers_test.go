@@ -78,11 +78,69 @@ func writeTestKeyFile(t *testing.T, path string, value byte) {
 	require.NoError(t, os.WriteFile(path, bytes.Repeat([]byte{value}, 32), 0o600))
 }
 
+// writeTestVaultDatabase persists an encoding copy without changing the source.
+func writeTestVaultDatabase(t *testing.T, path string, db *gokeepasslib.Database) {
+	t.Helper()
+	encoding, err := encodingVaultCopy(db)
+	require.NoError(t, err)
+	var data bytes.Buffer
+	require.NoError(t, gokeepasslib.NewEncoder(&data).Encode(encoding))
+	require.NoError(t, os.WriteFile(path, data.Bytes(), 0o600))
+}
+
 func readTestFile(t *testing.T, path string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	return data
+}
+
+func assertNoVaultTemps(t *testing.T, path string) {
+	t.Helper()
+	temps, err := filepath.Glob(filepath.Join(filepath.Dir(path), ".keepy-*.tmp"))
+	require.NoError(t, err)
+	assert.Empty(t, temps)
+}
+
+// assertVaultFormatAndMetadata compares stable fields after decoding, excluding
+// encoder-generated raw bytes, header hashes, random seeds, IVs, and KDF salt.
+func assertVaultFormatAndMetadata(t *testing.T, before, after *gokeepasslib.Database) {
+	t.Helper()
+	assert.Equal(t, before.Header.Signature, after.Header.Signature)
+	b, a := before.Header.FileHeaders, after.Header.FileHeaders
+	assert.Equal(t, b.CipherID, a.CipherID)
+	assert.Equal(t, b.CompressionFlags, a.CompressionFlags)
+	assert.Equal(t, b.TransformRounds, a.TransformRounds)
+	assert.Equal(t, b.InnerRandomStreamID, a.InnerRandomStreamID)
+	if b.KdfParameters != nil {
+		require.NotNil(t, a.KdfParameters)
+		kb, ka := b.KdfParameters, a.KdfParameters
+		assert.Equal(t, kb.UUID, ka.UUID)
+		assert.Equal(t, kb.Rounds, ka.Rounds)
+		assert.Equal(t, kb.Parallelism, ka.Parallelism)
+		assert.Equal(t, kb.Memory, ka.Memory)
+		assert.Equal(t, kb.Iterations, ka.Iterations)
+		assert.Equal(t, kb.Version, ka.Version)
+		assert.Equal(t, kb.SecretKey, ka.SecretKey)
+		assert.Equal(t, kb.AssocData, ka.AssocData)
+	} else {
+		assert.Nil(t, a.KdfParameters)
+	}
+	mb, ma := before.Content.Meta, after.Content.Meta
+	assert.Equal(t, mb.DatabaseName, ma.DatabaseName)
+	assert.Equal(t, mb.DatabaseDescription, ma.DatabaseDescription)
+	assert.Equal(t, mb.DefaultUserName, ma.DefaultUserName)
+	assert.Equal(t, mb.SettingsChanged, ma.SettingsChanged)
+	assert.Equal(t, mb.DatabaseNameChanged, ma.DatabaseNameChanged)
+	assert.Equal(t, mb.DatabaseDescriptionChanged, ma.DatabaseDescriptionChanged)
+	assert.Equal(t, mb.DefaultUserNameChanged, ma.DefaultUserNameChanged)
+	assert.Equal(t, mb.MasterKeyChanged, ma.MasterKeyChanged)
+	assert.Equal(t, mb.RecycleBinChanged, ma.RecycleBinChanged)
+	assert.Equal(t, mb.EntryTemplatesGroupChanged, ma.EntryTemplatesGroupChanged)
+	assert.Equal(t, mb.RecycleBinEnabled, ma.RecycleBinEnabled)
+	assert.Equal(t, mb.RecycleBinUUID, ma.RecycleBinUUID)
+	assert.Equal(t, mb.CustomIcons, ma.CustomIcons)
+	assert.Equal(t, mb.CustomData, ma.CustomData)
 }
 
 func resolvedTestPath(t *testing.T, path string) string {
