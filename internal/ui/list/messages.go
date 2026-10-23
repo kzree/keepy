@@ -40,6 +40,8 @@ type SaveResultMsg struct {
 	Error error
 }
 
+type ConfigSaveWarningMsg struct{ Error error }
+
 type ReloadVaultRequestMsg struct{ RequestID uint64 }
 
 type ReloadVaultResultMsg struct {

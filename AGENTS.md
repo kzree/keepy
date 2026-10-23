@@ -95,6 +95,10 @@ them. Guard queued mutation, edit-opening, and confirmation messages with reques
 identities so stale commands cannot affect a newer operation. Reserve viewport
 space for save/recovery notices.
 
+Login updates saved credentials without resetting existing preferences. A config
+save error is reported separately and must not undo successful authentication or
+prevent using the opened vault.
+
 Run checks appropriate to the change:
 
 ```sh

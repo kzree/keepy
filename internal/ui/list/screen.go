@@ -46,7 +46,9 @@ type ListModel struct {
 	copyFlashID      int
 	entries          []service.VaultEntry
 	filteredEntries  []service.VaultEntry
+	filter           string
 	saveNotice       error
+	configWarning    error
 	saveConflict     bool
 	reloading        bool
 	deleting         bool
@@ -91,6 +93,10 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case ConfigSaveWarningMsg:
+		m.configWarning = msg.Error
+		m.resizeTable()
+		return m, nil
 	case entryform.SubmitSuccessMsg:
 		m.openingEdit = false
 		m.activePane = listPane
@@ -263,46 +269,50 @@ func entriesToRows(entries []service.VaultEntry) []table.Row {
 
 func (m *ListModel) SetEntries(entries []service.VaultEntry) {
 	m.entries = entries
-	m.filteredEntries = entries
-	rows := entriesToRows(entries)
-	m.table.SetRows(rows)
+	m.FilterEntries(m.filter)
 }
 
 func (m *ListModel) FilterEntries(val string) {
-	if val == "" {
-		m.filteredEntries = m.entries
-		m.table.SetRows(entriesToRows(m.entries))
-		return
-	}
-
-	filtered := slices.Collect(func(yield func(service.VaultEntry) bool) {
-		for _, v := range m.entries {
-			title := strings.ToLower(v.Title)
-			substr := strings.ToLower(val)
-			if strings.Contains(title, substr) || strings.Contains(v.Username, val) {
-				if !yield(v) {
-					return
+	m.filter = val
+	filtered := m.entries
+	if val != "" {
+		filtered = slices.Collect(func(yield func(service.VaultEntry) bool) {
+			for _, v := range m.entries {
+				title := strings.ToLower(v.Title)
+				substr := strings.ToLower(val)
+				if strings.Contains(title, substr) || strings.Contains(v.Username, val) {
+					if !yield(v) {
+						return
+					}
 				}
 			}
-		}
-	})
+		})
+	}
 
 	currentCursor := m.table.Cursor()
 	var selected gokeepasslib.UUID
 
-	if currentCursor >= 0 && currentCursor < len(m.filteredEntries) {
+	hasSelection := currentCursor >= 0 && currentCursor < len(m.filteredEntries)
+	if hasSelection {
 		selected = m.filteredEntries[currentCursor].ID
 	}
 
 	m.filteredEntries = filtered
-	m.table.SetRows(entriesToRows(filtered))
-	m.table.SetCursor(0)
+	// Retain the same entry across sorting/refreshes. If it disappeared or no
+	// longer matches, retain its row position, clamped to the remaining rows.
+	target := max(0, min(currentCursor, len(filtered)-1))
 
 	for i, entry := range m.filteredEntries {
-		if entry.ID == selected {
-			m.table.SetCursor(i)
+		if hasSelection && entry.ID == selected {
+			target = i
 			break
 		}
+	}
+	m.table.SetRows(entriesToRows(filtered))
+	// SetCursor alone does not scroll Bubbles' viewport to reveal the row.
+	m.table.GotoTop()
+	if len(filtered) > 0 {
+		m.table.MoveDown(target)
 	}
 }
 
@@ -336,7 +346,7 @@ func (m *ListModel) resizeEntryForm(rightWidth int) {
 	frameW, frameH := paneStyle.GetFrameSize()
 	m.entryForm.SetSize(
 		max(0, rightWidth-frameW),
-		max(0, m.height-frameH),
+		max(0, m.height-lipgloss.Height(m.noticeView())-frameH),
 	)
 }
 
@@ -408,6 +418,12 @@ func (m ListModel) noticeView() string {
 	}
 	if m.reloading {
 		body = "Reloading database..."
+	}
+	if m.configWarning != nil {
+		if body != "" {
+			body += "\n"
+		}
+		body += "Vault opened, but settings could not be saved: " + m.configWarning.Error()
 	}
 	if body == "" {
 		return ""

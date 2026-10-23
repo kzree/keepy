@@ -1,6 +1,8 @@
 package service
 
 import (
+	"errors"
+	"io"
 	"os"
 
 	"github.com/pelletier/go-toml/v2"
@@ -40,17 +42,15 @@ func createDefaultConfig() (*Config, error) {
 	return &cfg, SaveConfig(&cfg)
 }
 
-func getAbsoluteConfigPath() string {
-	abs, err := util.PathFromHome(configPathFromHome + configFileName)
-	if err != nil {
-		panic("Failed to get absolute config path: " + err.Error())
-	}
-
-	return abs
+func getAbsoluteConfigPath() (string, error) {
+	return util.PathFromHome(configPathFromHome + configFileName)
 }
 
 func LoadConfig() (*Config, error) {
-	path := getAbsoluteConfigPath()
+	path, err := getAbsoluteConfigPath()
+	if err != nil {
+		return nil, err
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -74,19 +74,27 @@ func LoadConfig() (*Config, error) {
 }
 
 func SaveConfig(config *Config) error {
-	path := getAbsoluteConfigPath()
+	data, err := toml.Marshal(config)
+	if err != nil {
+		return err
+	}
+	path, err := getAbsoluteConfigPath()
+	if err != nil {
+		return err
+	}
 	file, err := util.OpenOrCreateFileAndTruncate(path)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	return writeConfig(file, data)
+}
 
-	toml, err := toml.Marshal(config)
-	if err != nil {
-		return err
+// writeConfig owns and closes the writer, preserving write and close causes.
+// Config saving is not a vault transaction and does not promise file rollback.
+func writeConfig(file io.WriteCloser, data []byte) error {
+	n, err := file.Write(data)
+	if err == nil && n != len(data) {
+		err = io.ErrShortWrite
 	}
-
-	file.Write(toml)
-
-	return nil
+	return errors.Join(err, file.Close())
 }

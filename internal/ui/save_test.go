@@ -18,6 +18,7 @@ import (
 )
 
 type outcomeVault struct {
+	authErr   error
 	entries   []service.VaultEntry
 	passwords map[gokeepasslib.UUID]string
 	saveErr   error
@@ -27,7 +28,7 @@ type outcomeVault struct {
 	reloads   int
 }
 
-func (v *outcomeVault) Authenticate(string, string, string, bool) error { return nil }
+func (v *outcomeVault) Authenticate(string, string, string, bool) error { return v.authErr }
 func (v *outcomeVault) ReAuthenticate() error {
 	v.reloads++
 	if v.reloadErr == nil {
@@ -294,4 +295,54 @@ func TestEscapeClosesSynchronouslyWithoutAffectingNewDraft(t *testing.T) {
 	require.Len(t, vault.entries, 1)
 	assert.Equal(t, "Newdraft", vault.entries[0].Title)
 	assert.Equal(t, 1, vault.mutations)
+}
+
+func TestMutationAndReloadRefreshKeepActiveSearch(t *testing.T) {
+	for _, operation := range []string{"add", "update", "delete", "reload"} {
+		t.Run(operation, func(t *testing.T) {
+			vault := &outcomeVault{entries: []service.VaultEntry{
+				{ID: gokeepasslib.NewUUID(), Title: "Match original"},
+				{ID: gokeepasslib.NewUUID(), Title: "Hidden unrelated"},
+			}}
+			r := rootWithVault(t, vault)
+			sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: 'f'}))
+			for _, char := range "match" {
+				sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: char, Text: string(char)}))
+			}
+			sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+			if operation == "reload" {
+				vault.saveErr = &service.SaveError{Kind: service.SaveConflict, Err: errors.New("external change")}
+				vault.reloaded = []service.VaultEntry{
+					{ID: gokeepasslib.NewUUID(), Title: "Match external"},
+					{ID: gokeepasslib.NewUUID(), Title: "Hidden external"},
+				}
+				submitThroughUI(t, &r, "delete")
+				sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: 'r', Mod: tea.ModCtrl}))
+				assert.Contains(t, r.View().Content, "Match external")
+				assert.NotContains(t, r.View().Content, "Hidden external")
+				assert.Equal(t, 1, vault.reloads)
+				assert.Len(t, vault.entries, 2)
+			} else {
+				submitThroughUI(t, &r, operation)
+				assert.NotContains(t, r.View().Content, "Committed", "nonmatching additions/edits must remain filtered out")
+				switch operation {
+				case "add":
+					require.Len(t, vault.entries, 3)
+					assert.Equal(t, "Committed", vault.entries[2].Title)
+					assert.Contains(t, r.View().Content, "Match original")
+				case "update":
+					assert.Equal(t, "Committed", vault.entries[0].Title)
+					assert.NotContains(t, r.View().Content, "Match original")
+				case "delete":
+					require.Len(t, vault.entries, 1)
+					assert.Equal(t, "Hidden unrelated", vault.entries[0].Title)
+					assert.NotContains(t, r.View().Content, "Match original")
+				}
+			}
+			assert.Equal(t, 1, vault.mutations)
+			assert.NotContains(t, r.View().Content, "Hidden unrelated")
+			sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: 'f'}))
+			assert.Contains(t, r.View().Content, "match", "the search input must retain the query")
+		})
+	}
 }

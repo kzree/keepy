@@ -27,7 +27,15 @@ func (r RootModel) handleLoginSubmitMsg(msg login.LoginSubmitMsg) (RootModel, te
 	config := service.Config{
 		Credentials: creds,
 	}
-	service.SaveConfig(&config)
+	if r.cfg != nil {
+		config = *r.cfg
+		config.Credentials = creds
+	}
+	r.cfg = &config
+	// Remember the active credentials even if persisting settings fails. A
+	// configuration error must not undo successful vault authentication.
+	configErr := service.SaveConfig(r.cfg)
+	r.list, _ = r.list.Update(list.ConfigSaveWarningMsg{Error: configErr})
 
 	w, h := r.getContentSize()
 	r.list.SetListTableSize(w, h)

@@ -1,6 +1,8 @@
 package service
 
 import (
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,6 +27,56 @@ key_file_path = "~/vault.key"
 	require.NotNil(t, cfg)
 	assert.Equal(t, "~/vault.kdbx", cfg.Credentials.DBPath)
 	assert.Equal(t, "~/vault.key", cfg.Credentials.KeyFilePath)
+}
+
+type failingConfigWriter struct {
+	writeErr error
+	closeErr error
+	short    bool
+	closed   bool
+}
+
+func (w *failingConfigWriter) Write(data []byte) (int, error) {
+	if w.writeErr != nil {
+		return 0, w.writeErr
+	}
+	if w.short {
+		return len(data) - 1, nil
+	}
+	return len(data), nil
+}
+
+func (w *failingConfigWriter) Close() error { w.closed = true; return w.closeErr }
+
+func TestConfigWriteReportsWriteShortWriteAndCloseFailures(t *testing.T) {
+	writeErr, closeErr := errors.New("write failed"), errors.New("close failed")
+	for _, scenario := range []struct {
+		name   string
+		writer failingConfigWriter
+		causes []error
+	}{
+		{"write", failingConfigWriter{writeErr: writeErr}, []error{writeErr}},
+		{"close", failingConfigWriter{closeErr: closeErr}, []error{closeErr}},
+		{"both", failingConfigWriter{writeErr: writeErr, closeErr: closeErr}, []error{writeErr, closeErr}},
+		{"short", failingConfigWriter{short: true, closeErr: closeErr}, []error{io.ErrShortWrite, closeErr}},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			err := writeConfig(&scenario.writer, []byte("configuration"))
+			for _, cause := range scenario.causes {
+				require.ErrorIs(t, err, cause)
+			}
+			assert.True(t, scenario.writer.closed)
+		})
+	}
+}
+
+func TestConfigReturnsHomeResolutionErrors(t *testing.T) {
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+	require.Error(t, SaveConfig(&Config{}))
+	cfg, err := LoadConfig()
+	require.Error(t, err)
+	assert.Nil(t, cfg)
 }
 
 func TestLoadConfigCreatesDefaultConfigWhenConfigIsMissing(t *testing.T) {
