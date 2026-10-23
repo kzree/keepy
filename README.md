@@ -37,6 +37,9 @@ Default keymap. Planned to be configurable in the config
 
 ### Save outcomes
 
+Application-wide warnings and global save/reload notices appear in a root-level
+bottom bar. Draft-specific errors remain beside the form values.
+
 - Failed saves keep the form values. Correct the problem, review the draft, and
   submit again to retry; saves are never retried automatically.
 - External-change conflicts block mutations until `Ctrl+R` reloads the database.

@@ -1,9 +1,7 @@
 package list
 
 import (
-	"charm.land/lipgloss/v2"
 	"errors"
-	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -40,27 +38,6 @@ func TestConflictDraftSurvivesFailedReloadAndRecovery(t *testing.T) {
 	assert.Contains(t, m.entryForm.View(), "Review your draft")
 }
 
-func TestConfigWarningCoexistsWithSaveNoticeAndResizesWithForm(t *testing.T) {
-	m := NewListModel()
-	m.SetListTableSize(100, 25)
-	initialHeight := m.table.Height()
-	m, _ = m.Update(ConfigSaveWarningMsg{Error: errors.New(strings.Repeat("settingsfailure ", 12))})
-	m, _ = m.Update(SaveResultMsg{Error: &service.SaveError{Kind: service.SaveDurabilityUncertain, Err: errors.New("flush failed")}})
-	assert.Contains(t, m.View(100, 25), "Save committed")
-	assert.Contains(t, m.View(100, 25), "settingsfailure")
-	assert.Less(t, m.table.Height(), initialHeight)
-	m, _ = m.Update(SaveResultMsg{})
-	m, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: 'n'}))
-	m.SetListTableSize(60, 18)
-	assert.Contains(t, m.View(60, 18), "settingsfailure")
-	assert.LessOrEqual(t, lipgloss.Height(m.View(60, 18)), 18)
-	m, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}))
-	m, _ = m.Update(ConfigSaveWarningMsg{})
-	m.SetListTableSize(100, 25)
-	assert.NotContains(t, m.View(100, 25), "settingsfailure")
-	assert.Equal(t, initialHeight, m.table.Height())
-}
-
 func TestDelayedEditCannotReplaceNewDraftOrConflictRecovery(t *testing.T) {
 	m := NewListModel()
 	m.SetListTableSize(120, 30)
@@ -77,7 +54,7 @@ func TestDelayedEditCannotReplaceNewDraftOrConflictRecovery(t *testing.T) {
 	m, cmd = m.Update(OpenEditEntryMsg{RequestID: requestID, Entry: entry})
 	assert.Nil(t, cmd)
 	assert.True(t, m.saveConflict)
-	assert.Contains(t, m.entryForm.View(), "ctrl+r")
+	assert.Contains(t, m.GlobalNotice(), "ctrl+r")
 }
 
 func TestDeleteConflictRequiresReloadBeforeAnotherMutation(t *testing.T) {

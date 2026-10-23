@@ -6,7 +6,6 @@ import (
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 	"errors"
-	"fmt"
 	"github.com/tobischo/gokeepasslib/v3"
 	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
@@ -68,7 +67,7 @@ func (m EntryFormModel) Update(msg tea.Msg) (EntryFormModel, tea.Cmd) {
 		cmd := m.restartForm()
 		return m, cmd
 	case ReloadFailedMsg:
-		m.submitError = fmt.Errorf("reload failed: %w", msg.Error)
+		m.submitError = msg.Error
 		return m, nil
 	case tea.KeyPressMsg:
 		if m.loading {
@@ -126,13 +125,13 @@ func (m EntryFormModel) View() string {
 func (m EntryFormModel) statusView() string {
 	var body string
 	if m.conflict {
-		body = "ctrl+r: reload latest database. Your draft is kept for review."
+		body = "Your draft is kept for review after reloading the database."
 	} else if m.reviewDraft {
 		body = "Database reloaded. Review your draft against the latest entries before submitting."
 	} else if m.submitError != nil {
 		body = "Not saved. Review your draft and submit again to retry."
 	}
-	if m.submitError != nil {
+	if m.submitError != nil && !m.conflict {
 		if body != "" {
 			body += "\n"
 		}

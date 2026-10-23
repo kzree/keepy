@@ -48,7 +48,6 @@ type ListModel struct {
 	filteredEntries  []service.VaultEntry
 	filter           string
 	saveNotice       error
-	configWarning    error
 	saveConflict     bool
 	reloading        bool
 	deleting         bool
@@ -93,10 +92,6 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case ConfigSaveWarningMsg:
-		m.configWarning = msg.Error
-		m.resizeTable()
-		return m, nil
 	case entryform.SubmitSuccessMsg:
 		m.openingEdit = false
 		m.activePane = listPane
@@ -346,11 +341,14 @@ func (m *ListModel) resizeEntryForm(rightWidth int) {
 	frameW, frameH := paneStyle.GetFrameSize()
 	m.entryForm.SetSize(
 		max(0, rightWidth-frameW),
-		max(0, m.height-lipgloss.Height(m.noticeView())-frameH),
+		max(0, m.height-frameH),
 	)
 }
 
 func (m *ListModel) SetListTableSize(contentWidth, contentHeight int) {
+	if m.width == contentWidth && m.height == contentHeight {
+		return
+	}
 	m.width = contentWidth
 	m.height = contentHeight
 
@@ -359,7 +357,7 @@ func (m *ListModel) SetListTableSize(contentWidth, contentHeight int) {
 
 func (m *ListModel) resizeTable() {
 	leftWidth, rightWidth := m.getPaneWidths(m.width)
-	baseHeight := max(1, m.height-lipgloss.Height(m.noticeView()))
+	baseHeight := max(1, m.height)
 	m.table.SetWidth(leftWidth)
 	m.table.SetHeight(util.Ternary(m.showSearch || m.showDeletePrompt, baseHeight-promptHeight, baseHeight))
 
@@ -370,8 +368,7 @@ func (m *ListModel) resizeTable() {
 
 func (m ListModel) View(contentWidth, contentHeight int) string {
 	leftWidth, rightWidth := m.getPaneWidths(contentWidth)
-	notice := m.noticeView()
-	paneHeight := max(0, contentHeight-lipgloss.Height(notice))
+	paneHeight := max(0, contentHeight)
 
 	left := m.table.View()
 	if m.showSearch {
@@ -391,9 +388,6 @@ func (m ListModel) View(contentWidth, contentHeight int) string {
 		strings.Repeat(" ", paneGap),
 		right,
 	)
-	if notice != "" {
-		return lipgloss.JoinVertical(lipgloss.Left, body, notice)
-	}
 	return body
 }
 
@@ -404,9 +398,11 @@ func boundedView(body string, width, height int) string {
 	return lipgloss.NewStyle().MaxWidth(width).MaxHeight(height).Render(body)
 }
 
-func (m ListModel) noticeView() string {
+// GlobalNotice exposes operation status to the root BottomBar. Draft-specific
+// failures remain in the entry form; views never append global status themselves.
+func (m ListModel) GlobalNotice() string {
 	var body string
-	if m.saveNotice != nil && !(m.showSidePane && m.activePane == createPane) {
+	if m.saveNotice != nil && (m.saveConflict || !(m.showSidePane && m.activePane == createPane)) {
 		var outcome *service.SaveError
 		if errors.As(m.saveNotice, &outcome) && outcome.Committed() {
 			body = "Save committed. Do not repeat the operation; durability could not be confirmed.\n"
@@ -414,19 +410,10 @@ func (m ListModel) noticeView() string {
 		if m.saveConflict {
 			body = "ctrl+r: reload latest database before trying another mutation.\n"
 		}
-		body += style.ErrorText.Render(m.saveNotice.Error())
+		body += m.saveNotice.Error()
 	}
 	if m.reloading {
 		body = "Reloading database..."
 	}
-	if m.configWarning != nil {
-		if body != "" {
-			body += "\n"
-		}
-		body += "Vault opened, but settings could not be saved: " + m.configWarning.Error()
-	}
-	if body == "" {
-		return ""
-	}
-	return boundedView(lipgloss.NewStyle().Width(max(1, m.width)).Render(body), m.width, m.height)
+	return body
 }

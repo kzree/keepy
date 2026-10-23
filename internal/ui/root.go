@@ -3,10 +3,12 @@ package ui
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/tobischo/gokeepasslib/v3"
 	"golang.design/x/clipboard"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
+	"kzree.com/keepy/internal/ui/common"
 	"kzree.com/keepy/internal/ui/list"
 	"kzree.com/keepy/internal/ui/list/entryform"
 	"kzree.com/keepy/internal/ui/login"
@@ -30,8 +32,9 @@ type RootModel struct {
 	db  vaultSession
 	cfg *service.Config
 
-	login login.LoginModel
-	list  list.ListModel
+	login     login.LoginModel
+	list      list.ListModel
+	bottomBar common.BottomBarModel
 
 	width  int
 	height int
@@ -107,6 +110,7 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screenList:
 		list, cmd := r.list.Update(msg)
 		r.list = list
+		r.resizeViews()
 		return r, cmd
 	}
 
@@ -129,12 +133,46 @@ func (r *RootModel) getContentSize() (int, int) {
 
 	width := max(0, r.width-frameW)
 	height := max(0, r.height-frameH)
+	bar := r.renderBottomBar(width, height)
+	if bar != "" {
+		height -= lipgloss.Height(bar)
+	}
 	return width, height
+}
+
+func (r RootModel) renderBottomBar(width, height int) string {
+	bar := r.bottomBar
+	if r.activeView == screenList {
+		bar.SetStatus(r.list.GlobalNotice())
+	}
+	// Keep the footer compact and preserve room for the active view. Extremely
+	// small terminals still get one row of prioritized recovery guidance.
+	budget := min(height, min(5, max(1, height/4)))
+	return bar.View(width, budget)
+}
+
+func (r *RootModel) resizeViews() {
+	w, h := r.getContentSize()
+	r.list.SetListTableSize(w, h)
 }
 
 func (r RootModel) View() tea.View {
 	w, h := r.getContentSize()
 	body := r.renderCurrentView(w, h)
+	if w <= 0 || h <= 0 {
+		body = ""
+	} else {
+		body = lipgloss.NewStyle().Width(w).Height(h).MaxWidth(w).MaxHeight(h).Render(body)
+	}
+	_, frameH := style.Frame.GetFrameSize()
+	bar := r.renderBottomBar(w, max(0, r.height-frameH))
+	if bar != "" {
+		if body == "" {
+			body = bar
+		} else {
+			body = lipgloss.JoinVertical(lipgloss.Left, body, bar)
+		}
+	}
 
 	view := tea.NewView(r.renderFrame(body))
 	view.AltScreen = true

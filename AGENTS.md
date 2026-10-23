@@ -95,6 +95,10 @@ them. Guard queued mutation, edit-opening, and confirmation messages with reques
 identities so stale commands cannot affect a newer operation. Reserve viewport
 space for save/recovery notices.
 
+The root-owned BottomBar renders application-wide errors and global save/reload
+notices. Screens receive the remaining content space and must not append global
+notices themselves. Keep draft-specific errors and review guidance in the form.
+
 Login updates saved credentials without resetting existing preferences. A config
 save error is reported separately and must not undo successful authentication or
 prevent using the opened vault.

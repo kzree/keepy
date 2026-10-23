@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"fmt"
 
 	tea "charm.land/bubbletea/v2"
 	"golang.design/x/clipboard"
@@ -35,11 +36,14 @@ func (r RootModel) handleLoginSubmitMsg(msg login.LoginSubmitMsg) (RootModel, te
 	// Remember the active credentials even if persisting settings fails. A
 	// configuration error must not undo successful vault authentication.
 	configErr := service.SaveConfig(r.cfg)
-	r.list, _ = r.list.Update(list.ConfigSaveWarningMsg{Error: configErr})
+	configNotice := ""
+	if configErr != nil {
+		configNotice = "Vault opened, but settings could not be saved: " + configErr.Error()
+	}
+	r.bottomBar.SetApplicationNotice(configNotice)
 
-	w, h := r.getContentSize()
-	r.list.SetListTableSize(w, h)
 	r.activeView = screenList
+	r.resizeViews()
 	return r, r.list.Init()
 }
 
@@ -78,8 +82,7 @@ func (r RootModel) handleWindowSizeMsg(msg tea.WindowSizeMsg) (RootModel, tea.Cm
 	r.width = msg.Width
 	r.height = msg.Height
 
-	w, h := r.getContentSize()
-	r.list.SetListTableSize(w, h)
+	r.resizeViews()
 
 	return r, nil
 }
@@ -125,12 +128,14 @@ func (r RootModel) finishFormSave(err error) (RootModel, tea.Cmd) {
 	if !saveCommitted(err) {
 		var cmd tea.Cmd
 		r.list, cmd = r.list.Update(entryform.SubmitFailedMsg{Error: err})
+		r.resizeViews()
 		return r, cmd
 	}
 
 	r.list.SetEntries(r.db.GetEntriesFlat())
 	var cmd tea.Cmd
 	r.list, cmd = r.list.Update(entryform.SubmitSuccessMsg{Warning: err})
+	r.resizeViews()
 	return r, cmd
 }
 
@@ -143,6 +148,7 @@ func (r RootModel) handleDeleteEntryRequestMsg(msg list.DeleteEntryRequestMsg) (
 		r.list.SetEntries(r.db.GetEntriesFlat())
 	}
 	r.list, _ = r.list.Update(list.SaveResultMsg{Error: err})
+	r.resizeViews()
 	return r, nil
 }
 
@@ -155,8 +161,11 @@ func (r RootModel) handleReloadVault(msg list.ReloadVaultRequestMsg) (RootModel,
 	err := r.db.ReAuthenticate()
 	if err == nil {
 		r.list.SetEntries(r.db.GetEntriesFlat())
+	} else {
+		err = fmt.Errorf("reload failed: %w", err)
 	}
 	var cmd tea.Cmd
 	r.list, cmd = r.list.Update(list.ReloadVaultResultMsg{Error: err})
+	r.resizeViews()
 	return r, cmd
 }
