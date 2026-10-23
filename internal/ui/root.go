@@ -29,9 +29,11 @@ type RootModel struct {
 	operationSpinner   spinner.Model
 	quitAfterOperation bool
 
-	login     login.LoginModel
-	list      list.ListModel
-	bottomBar common.BottomBarModel
+	login       login.LoginModel
+	list        list.ListModel
+	bottomBar   common.BottomBarModel
+	helpVisible bool
+	keymapHelp  common.KeymapHelpModel
 
 	width  int
 	height int
@@ -112,6 +114,16 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		return r.handleWindowSizeMsg(msg)
+	case tea.MouseMsg:
+		if r.helpVisible {
+			var cmd tea.Cmd
+			r.keymapHelp, cmd = r.keymapHelp.Update(msg)
+			return r, cmd
+		}
+	case tea.PasteMsg:
+		if r.helpVisible {
+			return r, nil
+		}
 	}
 
 	switch r.activeView {

@@ -3,6 +3,7 @@ package list
 import (
 	"charm.land/bubbles/v2/table"
 	"charm.land/lipgloss/v2"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/textprovider"
 	"kzree.com/keepy/internal/textprovider/key"
 )
@@ -24,10 +25,7 @@ func createEntryTable(t *textprovider.TextProvider) table.Model {
 		table.WithHeight(1),
 		table.WithWidth(42),
 	)
-	keys := table.DefaultKeyMap()
-	keys.PageUp.SetKeys("pgup")
-	keys.PageDown.SetKeys("pgdown")
-	tbl.KeyMap = keys
+	tbl.KeyMap = control.EntryTableKeyMap()
 
 	setSelectedStyle(&tbl, normalSelectedStyle())
 

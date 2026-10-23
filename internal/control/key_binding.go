@@ -18,4 +18,6 @@ const (
 	ReloadVault        = "ctrl+r"
 	Confirm            = "y"
 	Cancel             = "n"
+	ShowHelp           = "?"
+	ShowHelpAnywhere   = "f1"
 )

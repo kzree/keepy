@@ -9,12 +9,30 @@ Default keymap. Planned to be configurable in the config
 ### Global
 
 - `Ctrl+C` or `Q` - quit the application
+- `?` - open keymap help outside text inputs
+- `F1` - open keymap help everywhere, including forms and search
 
 If a vault operation is in progress, a quit request waits for its result.
 
+### Keymap help
+
+Help is a separate, scrollable view with global bindings and groups for login,
+the entry list, search, entry forms, delete confirmation, and recovery. The current
+context is marked; conditional shortcuts describe when they apply.
+
+- `Esc`, `?`, or `F1` - close help and return without losing the underlying state
+- `Up`/`Down` or `k`/`j` - scroll
+- `Page Up`/`Page Down` - scroll by a page
+- `Home`/`End` - first/last help page
+
+The BottomBar stays visible and background operations continue while help is
+open. Question marks remain normal text inside inputs. `q` quits from help;
+it waits for accepted vault work to finish.
+
 ### Login view
 
-- `Enter` and `Shift + enter` - navigate the form and submit
+- `Enter` or `Tab` - next field; `Enter` submits on the last field
+- `Shift+Tab` - previous field
 - `Ctrl+T` - toggle file path fields
 - `Ctrl+R` - retry configuration loading after a startup configuration error
 
@@ -34,7 +52,8 @@ If a vault operation is in progress, a quit request waits for its result.
 
 #### Entry form
 
-- `Enter` and `Shift + enter` - navigate the form and submit
+- `Enter` or `Tab` - next field; `Enter` submits on the last field
+- `Shift+Tab` - previous field
 - `Ctrl+G` - generate random 24 character password
 - `Esc` - quit entry form (resets the form)
 
@@ -79,7 +98,7 @@ Ordinary clipboard-write failures can be retried explicitly with `C`.
 - [ ] Login redesign, both UI and UX
   - [ ] File picker for paths
 - [ ] Key hints
-  - [ ] Modal with key hints
+  - [x] Scrollable keymap help (`?` / `F1`)
   - [ ] Configurable keybinds
 - [x] i18n
 - [ ] Proper error handling

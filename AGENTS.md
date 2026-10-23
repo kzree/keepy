@@ -105,6 +105,11 @@ The root-owned BottomBar renders application-wide errors and global save/reload
 notices. Screens receive the remaining content space and must not append global
 notices themselves. Keep draft-specific errors and review guidance in the form.
 
+Keymap help reuses application binding constants and the effective table/form
+navigation maps. `?` opens help only outside text inputs; `F1` works everywhere.
+Help preserves underlying screen models and continues processing background
+completions. Help input must not trigger actions in the underlying view.
+
 Login updates saved credentials without resetting existing preferences. A config
 save error is reported separately and must not undo successful authentication or
 prevent using the opened vault.

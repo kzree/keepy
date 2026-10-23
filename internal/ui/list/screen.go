@@ -88,6 +88,19 @@ func (m ListModel) IsTextInputActive() bool {
 	return m.showSearch || (m.showSidePane && m.activePane == createPane)
 }
 
+func (m ListModel) KeymapContext() string {
+	if m.showSearch {
+		return control.SearchKeys
+	}
+	if m.showDeletePrompt {
+		return control.ConfirmationKeys
+	}
+	if m.showSidePane && m.activePane == createPane {
+		return control.EntryFormKeys
+	}
+	return control.ListKeys
+}
+
 func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 	var cmds []tea.Cmd
 

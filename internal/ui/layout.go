@@ -7,6 +7,9 @@ import (
 )
 
 func (r *RootModel) renderCurrentView(contentWidth, contentHeight int) string {
+	if r.helpVisible {
+		return r.keymapHelp.View()
+	}
 	switch r.activeView {
 	case screenLogin:
 		if r.configLoadError != nil {
@@ -53,6 +56,10 @@ func (r RootModel) renderBottomBar(width, height int) string {
 func (r *RootModel) resizeViews() {
 	w, h := r.getContentSize()
 	r.list.SetListTableSize(w, h)
+	if r.helpVisible {
+		r.keymapHelp.SetContext(r.keymapContext(), r.pendingOperation.kind != operationNone)
+		r.keymapHelp.SetSize(w, h)
+	}
 }
 
 func (r *RootModel) renderFrame(content string) string {
