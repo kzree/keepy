@@ -5,7 +5,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/tobischo/gokeepasslib/v3"
-	"golang.design/x/clipboard"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
 	"kzree.com/keepy/internal/ui/common"
@@ -29,8 +28,16 @@ type vaultSession interface {
 type RootModel struct {
 	activeView screen
 
-	db  vaultSession
-	cfg *service.Config
+	db               vaultSession
+	cfg              *service.Config
+	configLoadError  error
+	configSaveError  error
+	clipboardError   error
+	copyError        error
+	clipboardPending bool
+	clipboardReady   bool
+	initClipboard    func() error
+	writeClipboard   func([]byte) bool
 
 	login     login.LoginModel
 	list      list.ListModel
@@ -41,38 +48,45 @@ type RootModel struct {
 }
 
 func NewRootModel() RootModel {
-	// TODO: improve error handling
 	cfg, err := service.LoadConfig()
-	if err != nil {
-		panic("Failed to load config: " + err.Error())
-	}
 
-	return RootModel{
-		activeView: screenLogin,
-		login:      login.NewLoginModel(cfg),
-		list:       list.NewListModel(),
-		db:         service.NewVault(),
-		cfg:        cfg,
+	r := RootModel{
+		activeView:       screenLogin,
+		login:            login.NewLoginModel(cfg),
+		list:             list.NewListModel(),
+		db:               service.NewVault(),
+		cfg:              cfg,
+		configLoadError:  err,
+		clipboardPending: true,
+		initClipboard:    initializeClipboard,
+		writeClipboard:   writeClipboardText,
 	}
+	r.updateApplicationNotice()
+	return r
 }
 
 func (r RootModel) Init() tea.Cmd {
-	err := clipboard.Init()
-	// TODO: better error handling
-	if err != nil {
-		panic("Failed to initialize clipboard: " + err.Error())
+	var loginCmd tea.Cmd
+	if r.activeView == screenLogin && r.configLoadError == nil {
+		loginCmd = r.login.Init()
 	}
-
-	switch r.activeView {
-	case screenLogin:
-		return r.login.Init()
-	}
-
-	return nil
+	init := r.initClipboard
+	return tea.Batch(loginCmd, func() tea.Msg { return clipboardInitializedMsg{Error: init()} })
 }
 
 func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case clipboardInitializedMsg:
+		if !r.clipboardPending {
+			return r, nil
+		}
+		r.clipboardPending = false
+		r.clipboardError = msg.Error
+		r.clipboardReady = msg.Error == nil
+		r.copyError = nil
+		r.updateApplicationNotice()
+		r.resizeViews()
+		return r, nil
 	case login.LoginSubmitMsg:
 		return r.handleLoginSubmitMsg(msg)
 
@@ -104,6 +118,9 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch r.activeView {
 	case screenLogin:
+		if r.configLoadError != nil {
+			return r, nil
+		}
 		login, cmd := r.login.Update(msg)
 		r.login = login
 		return r, cmd
@@ -120,6 +137,9 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (r *RootModel) renderCurrentView(contentWidth, contentHeight int) string {
 	switch r.activeView {
 	case screenLogin:
+		if r.configLoadError != nil {
+			return "Configuration unavailable\n\nCorrect the configuration file or its access permissions.\nPress Ctrl+R to retry loading it, or Ctrl+C to quit.\nThe existing file will not be overwritten."
+		}
 		return r.login.View()
 	case screenList:
 		return r.list.View(contentWidth, contentHeight)

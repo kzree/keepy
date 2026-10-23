@@ -18,17 +18,28 @@ import (
 )
 
 type outcomeVault struct {
-	authErr   error
-	entries   []service.VaultEntry
-	passwords map[gokeepasslib.UUID]string
-	saveErr   error
-	reloadErr error
-	reloaded  []service.VaultEntry
-	mutations int
-	reloads   int
+	authCalls       int
+	authCredentials service.Credentials
+	authPassword    string
+	authUsesKey     bool
+	passwordReads   int
+	authErr         error
+	entries         []service.VaultEntry
+	passwords       map[gokeepasslib.UUID]string
+	saveErr         error
+	reloadErr       error
+	reloaded        []service.VaultEntry
+	mutations       int
+	reloads         int
 }
 
-func (v *outcomeVault) Authenticate(string, string, string, bool) error { return v.authErr }
+func (v *outcomeVault) Authenticate(dbPath, keyPath, password string, useKey bool) error {
+	v.authCalls++
+	v.authCredentials = service.Credentials{DBPath: dbPath, KeyFilePath: keyPath}
+	v.authPassword = password
+	v.authUsesKey = useKey
+	return v.authErr
+}
 func (v *outcomeVault) ReAuthenticate() error {
 	v.reloads++
 	if v.reloadErr == nil {
@@ -38,6 +49,7 @@ func (v *outcomeVault) ReAuthenticate() error {
 }
 func (v *outcomeVault) GetEntriesFlat() []service.VaultEntry { return v.entries }
 func (v *outcomeVault) GetEntryPassword(id gokeepasslib.UUID) (string, error) {
+	v.passwordReads++
 	return v.passwords[id], nil
 }
 func (v *outcomeVault) AddNewEntry(entry service.NewVaultEntry) error {

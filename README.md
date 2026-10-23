@@ -14,6 +14,7 @@ Default keymap. Planned to be configurable in the config
 
 - `Enter` and `Shift + enter` - navigate the form and submit
 - `Ctrl+T` - toggle file path fields
+- `Ctrl+R` - retry configuration loading after a startup configuration error
 
 ### List view
 
@@ -48,6 +49,19 @@ bottom bar. Draft-specific errors remain beside the form values.
 - If a save commits but reports uncertain durability, the form closes and the
   list refreshes from the committed vault. The warning remains visible; do not
   repeat the mutation.
+
+### Startup recovery
+
+If the configuration cannot be read or parsed, Keepy shows the error in the
+bottom bar and waits for you to correct the file or its access permissions.
+Press `Ctrl+R` to retry loading it, or `Ctrl+C` to quit. Login is blocked until
+loading succeeds, so an existing broken configuration is not overwritten with
+fallback credentials.
+
+Clipboard initialization runs separately. If it fails, the vault remains usable
+and copying is disabled. Restore clipboard access and restart Keepy to enable
+copying; the clipboard library caches initialization failures for the process.
+Ordinary clipboard-write failures can be retried explicitly with `C`.
 
 ## Todo for v1.0
 

@@ -103,6 +103,12 @@ Login updates saved credentials without resetting existing preferences. A config
 save error is reported separately and must not undo successful authentication or
 prevent using the opened vault.
 
+Startup config-load failures require explicit reload before login; never overwrite
+an unreadable or malformed config with fallback credentials. Clipboard startup
+failure disables copying without blocking vault use. Check clipboard readiness
+before retrieving a password for copying, and preserve independent notices as
+individual startup/config/copy errors recover.
+
 Run checks appropriate to the change:
 
 ```sh

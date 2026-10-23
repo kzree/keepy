@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
-	"golang.design/x/clipboard"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/ui/list"
 	"kzree.com/keepy/internal/ui/list/entryform"
@@ -13,6 +12,11 @@ import (
 )
 
 func (r RootModel) handleLoginSubmitMsg(msg login.LoginSubmitMsg) (RootModel, tea.Cmd) {
+	// An unreadable/malformed config must be corrected explicitly, never
+	// overwritten by saving credentials from a fallback login form.
+	if r.configLoadError != nil {
+		return r, nil
+	}
 	creds := service.Credentials{
 		DBPath:      msg.DBPath,
 		KeyFilePath: msg.KeyFilePath,
@@ -35,12 +39,8 @@ func (r RootModel) handleLoginSubmitMsg(msg login.LoginSubmitMsg) (RootModel, te
 	r.cfg = &config
 	// Remember the active credentials even if persisting settings fails. A
 	// configuration error must not undo successful vault authentication.
-	configErr := service.SaveConfig(r.cfg)
-	configNotice := ""
-	if configErr != nil {
-		configNotice = "Vault opened, but settings could not be saved: " + configErr.Error()
-	}
-	r.bottomBar.SetApplicationNotice(configNotice)
+	r.configSaveError = service.SaveConfig(r.cfg)
+	r.updateApplicationNotice()
 
 	r.activeView = screenList
 	r.resizeViews()
@@ -48,30 +48,26 @@ func (r RootModel) handleLoginSubmitMsg(msg login.LoginSubmitMsg) (RootModel, te
 }
 
 func (r RootModel) handleCopyPasswordRequestMsg(msg list.CopyPasswordRequestMsg) (RootModel, tea.Cmd) {
+	if !r.clipboardReady {
+		if r.clipboardError == nil {
+			r.copyError = errors.New("clipboard is not ready")
+		}
+		r.updateApplicationNotice()
+		r.resizeViews()
+		return r, nil
+	}
 	pwd, err := r.db.GetEntryPassword(msg.ID)
+	if err == nil && pwd == "" {
+		err = errors.New("password not found for entry")
+	}
+	if err == nil && !r.writeClipboard([]byte(pwd)) {
+		err = errors.New("failed to write password to clipboard")
+	}
+	r.copyError = err
+	r.updateApplicationNotice()
+	r.resizeViews()
 	if err != nil {
-		return r, func() tea.Msg {
-			return list.CopyPasswordFailureMsg{
-				Error: err,
-			}
-		}
-	}
-
-	if pwd == "" {
-		return r, func() tea.Msg {
-			return list.CopyPasswordFailureMsg{
-				Error: errors.New("password not found for entry"),
-			}
-		}
-	}
-
-	changed := clipboard.Write(clipboard.FmtText, []byte(pwd))
-	if changed == nil {
-		return r, func() tea.Msg {
-			return list.CopyPasswordFailureMsg{
-				Error: errors.New("failed to write password to clipboard"),
-			}
-		}
+		return r, nil
 	}
 	return r, func() tea.Msg {
 		return list.CopyPasswordSuccessMsg{}
