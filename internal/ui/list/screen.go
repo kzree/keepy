@@ -401,6 +401,9 @@ func boundedView(body string, width, height int) string {
 // GlobalNotice exposes operation status to the root BottomBar. Draft-specific
 // failures remain in the entry form; views never append global status themselves.
 func (m ListModel) GlobalNotice() string {
+	if m.deleting {
+		return "Deleting entry..."
+	}
 	var body string
 	if m.saveNotice != nil && (m.saveConflict || !(m.showSidePane && m.activePane == createPane)) {
 		var outcome *service.SaveError

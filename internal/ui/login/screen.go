@@ -28,6 +28,7 @@ type LoginModel struct {
 	authError        error
 	showPathFields   bool
 	formValues       *loginFormValues
+	requestID        uint64
 }
 
 func NewLoginModel(cfg *service.Config) LoginModel {
@@ -70,6 +71,9 @@ func (m LoginModel) Update(msg tea.Msg) (LoginModel, tea.Cmd) {
 	case AuthenticationFailedMsg:
 		return m.handleAuthenticationFailedMsg(msg)
 	case tea.KeyPressMsg:
+		if m.loading {
+			return m, nil
+		}
 		switch msg.String() {
 		case control.LoginToggle:
 			return m.handleTogglePathFields()
@@ -84,6 +88,8 @@ func (m LoginModel) Update(msg tea.Msg) (LoginModel, tea.Cmd) {
 
 	if m.form.State == huh.StateCompleted && !m.loading {
 		m.loading = true
+		m.requestID++
+		m.authError = nil
 		return m, tea.Batch(cmd, m.spinner.Tick, m.submitAuth())
 	}
 
@@ -112,6 +118,7 @@ func (m LoginModel) View() string {
 
 func (m *LoginModel) submitAuth() tea.Cmd {
 	msg := LoginSubmitMsg{
+		RequestID:   m.requestID,
 		DBPath:      m.formValues.dbPath,
 		KeyFilePath: m.formValues.keyFilePath,
 		Password:    m.formValues.password,
@@ -121,3 +128,5 @@ func (m *LoginModel) submitAuth() tea.Cmd {
 		return msg
 	}
 }
+
+func (m LoginModel) AcceptsSubmission(id uint64) bool { return m.loading && m.requestID == id }

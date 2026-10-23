@@ -14,20 +14,13 @@ import (
 func (r RootModel) handleLoginSubmitMsg(msg login.LoginSubmitMsg) (RootModel, tea.Cmd) {
 	// An unreadable/malformed config must be corrected explicitly, never
 	// overwritten by saving credentials from a fallback login form.
-	if r.configLoadError != nil {
+	if r.configLoadError != nil || r.activeView != screenLogin || !r.canStartVaultOperation() || !r.login.AcceptsSubmission(msg.RequestID) {
 		return r, nil
 	}
 	creds := service.Credentials{
 		DBPath:      msg.DBPath,
 		KeyFilePath: msg.KeyFilePath,
 	}
-
-	if err := r.db.Authenticate(msg.DBPath, msg.KeyFilePath, msg.Password, msg.KeyFilePath != ""); err != nil {
-		return r, func() tea.Msg {
-			return login.AuthenticationFailedMsg{Error: err}
-		}
-	}
-	r.list.SetEntries(r.db.GetEntriesFlat())
 
 	config := service.Config{
 		Credentials: creds,
@@ -36,18 +29,24 @@ func (r RootModel) handleLoginSubmitMsg(msg login.LoginSubmitMsg) (RootModel, te
 		config = *r.cfg
 		config.Credentials = creds
 	}
-	r.cfg = &config
-	// Remember the active credentials even if persisting settings fails. A
-	// configuration error must not undo successful vault authentication.
-	r.configSaveError = service.SaveConfig(r.cfg)
-	r.updateApplicationNotice()
-
-	r.activeView = screenList
-	r.resizeViews()
-	return r, r.list.Init()
+	op := r.beginVaultOperation(operationLogin, msg.RequestID)
+	vault := r.db
+	return r, func() tea.Msg {
+		result := vaultOperationResult{operation: op}
+		result.err = vault.Authenticate(msg.DBPath, msg.KeyFilePath, msg.Password, msg.KeyFilePath != "")
+		if result.err == nil {
+			result.entries = vault.GetEntriesFlat()
+			result.config = &config
+			result.configError = service.SaveConfig(&config)
+		}
+		return result
+	}
 }
 
 func (r RootModel) handleCopyPasswordRequestMsg(msg list.CopyPasswordRequestMsg) (RootModel, tea.Cmd) {
+	if !r.canStartVaultOperation() {
+		return r, nil
+	}
 	if !r.clipboardReady {
 		if r.clipboardError == nil {
 			r.copyError = errors.New("clipboard is not ready")
@@ -84,14 +83,15 @@ func (r RootModel) handleWindowSizeMsg(msg tea.WindowSizeMsg) (RootModel, tea.Cm
 }
 
 func (r RootModel) handleSubmitEntry(msg entryform.SubmitEntryMsg) (RootModel, tea.Cmd) {
-	if !r.list.AcceptsFormSubmission(msg.RequestID) {
+	if !r.canStartVaultOperation() || !r.list.AcceptsFormSubmission(msg.RequestID) {
 		return r, nil
 	}
-	return r.finishFormSave(r.db.AddNewEntry(msg.Entry))
+	vault := r.db
+	return r.startFormSave(msg.RequestID, func() error { return vault.AddNewEntry(msg.Entry) })
 }
 
 func (r RootModel) handleEditEntryRequestMsg(msg list.EditEntryRequestMsg) (RootModel, tea.Cmd) {
-	if !r.list.AcceptsEditOpen(msg.RequestID) {
+	if !r.canStartVaultOperation() || !r.list.AcceptsEditOpen(msg.RequestID) {
 		return r, nil
 	}
 	password, err := r.db.GetEntryPassword(msg.Entry.ID)
@@ -107,10 +107,23 @@ func (r RootModel) handleEditEntryRequestMsg(msg list.EditEntryRequestMsg) (Root
 }
 
 func (r RootModel) handleSubmitEditEntry(msg entryform.SubmitEditEntryMsg) (RootModel, tea.Cmd) {
-	if !r.list.AcceptsFormSubmission(msg.RequestID) {
+	if !r.canStartVaultOperation() || !r.list.AcceptsFormSubmission(msg.RequestID) {
 		return r, nil
 	}
-	return r.finishFormSave(r.db.UpdateEntry(msg.ID, msg.Entry))
+	vault := r.db
+	return r.startFormSave(msg.RequestID, func() error { return vault.UpdateEntry(msg.ID, msg.Entry) })
+}
+
+func (r RootModel) startFormSave(requestID uint64, mutate func() error) (RootModel, tea.Cmd) {
+	op := r.beginVaultOperation(operationFormSave, requestID)
+	vault := r.db
+	return r, func() tea.Msg {
+		result := vaultOperationResult{operation: op, err: mutate()}
+		if saveCommitted(result.err) {
+			result.entries = vault.GetEntriesFlat()
+		}
+		return result
+	}
 }
 
 func saveCommitted(err error) bool {
@@ -120,7 +133,7 @@ func saveCommitted(err error) bool {
 
 // finishFormSave closes a form for every committed outcome. Reporting a committed
 // durability error as a form failure would offer a retry of an applied mutation.
-func (r RootModel) finishFormSave(err error) (RootModel, tea.Cmd) {
+func (r RootModel) finishFormSave(err error, entries []service.VaultEntry) (RootModel, tea.Cmd) {
 	if !saveCommitted(err) {
 		var cmd tea.Cmd
 		r.list, cmd = r.list.Update(entryform.SubmitFailedMsg{Error: err})
@@ -128,7 +141,7 @@ func (r RootModel) finishFormSave(err error) (RootModel, tea.Cmd) {
 		return r, cmd
 	}
 
-	r.list.SetEntries(r.db.GetEntriesFlat())
+	r.list.SetEntries(entries)
 	var cmd tea.Cmd
 	r.list, cmd = r.list.Update(entryform.SubmitSuccessMsg{Warning: err})
 	r.resizeViews()
@@ -136,32 +149,35 @@ func (r RootModel) finishFormSave(err error) (RootModel, tea.Cmd) {
 }
 
 func (r RootModel) handleDeleteEntryRequestMsg(msg list.DeleteEntryRequestMsg) (RootModel, tea.Cmd) {
-	if !r.list.AcceptsDelete(msg.RequestID) {
+	if !r.canStartVaultOperation() || !r.list.AcceptsDelete(msg.RequestID) {
 		return r, nil
 	}
-	err := r.db.DeleteEntry(msg.ID)
-	if saveCommitted(err) {
-		r.list.SetEntries(r.db.GetEntriesFlat())
-	}
-	r.list, _ = r.list.Update(list.SaveResultMsg{Error: err})
-	r.resizeViews()
-	return r, nil
+	op := r.beginVaultOperation(operationDelete, msg.RequestID)
+	vault := r.db
+	return r, tea.Batch(r.operationSpinner.Tick, func() tea.Msg {
+		result := vaultOperationResult{operation: op, err: vault.DeleteEntry(msg.ID)}
+		if saveCommitted(result.err) {
+			result.entries = vault.GetEntriesFlat()
+		}
+		return result
+	})
 }
 
 // Reload is explicit and never repeats the conflicted mutation. Draft state is
 // owned by the form and retained for review against the newly authenticated data.
 func (r RootModel) handleReloadVault(msg list.ReloadVaultRequestMsg) (RootModel, tea.Cmd) {
-	if !r.list.AcceptsReload(msg.RequestID) {
+	if !r.canStartVaultOperation() || !r.list.AcceptsReload(msg.RequestID) {
 		return r, nil
 	}
-	err := r.db.ReAuthenticate()
-	if err == nil {
-		r.list.SetEntries(r.db.GetEntriesFlat())
-	} else {
-		err = fmt.Errorf("reload failed: %w", err)
-	}
-	var cmd tea.Cmd
-	r.list, cmd = r.list.Update(list.ReloadVaultResultMsg{Error: err})
-	r.resizeViews()
-	return r, cmd
+	op := r.beginVaultOperation(operationReload, msg.RequestID)
+	vault := r.db
+	return r, tea.Batch(r.operationSpinner.Tick, func() tea.Msg {
+		result := vaultOperationResult{operation: op, err: vault.ReAuthenticate()}
+		if result.err == nil {
+			result.entries = vault.GetEntriesFlat()
+		} else {
+			result.err = fmt.Errorf("reload failed: %w", result.err)
+		}
+		return result
+	})
 }

@@ -2,6 +2,7 @@
 package ui
 
 import (
+	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/tobischo/gokeepasslib/v3"
@@ -28,16 +29,20 @@ type vaultSession interface {
 type RootModel struct {
 	activeView screen
 
-	db               vaultSession
-	cfg              *service.Config
-	configLoadError  error
-	configSaveError  error
-	clipboardError   error
-	copyError        error
-	clipboardPending bool
-	clipboardReady   bool
-	initClipboard    func() error
-	writeClipboard   func([]byte) bool
+	db                 vaultSession
+	cfg                *service.Config
+	configLoadError    error
+	configSaveError    error
+	clipboardError     error
+	copyError          error
+	clipboardPending   bool
+	clipboardReady     bool
+	initClipboard      func() error
+	writeClipboard     func([]byte) bool
+	operationSequence  uint64
+	pendingOperation   pendingVaultOperation
+	operationSpinner   spinner.Model
+	quitAfterOperation bool
 
 	login     login.LoginModel
 	list      list.ListModel
@@ -76,6 +81,14 @@ func (r RootModel) Init() tea.Cmd {
 
 func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case vaultOperationResult:
+		return r.handleVaultOperationResult(msg)
+	case spinner.TickMsg:
+		if r.pendingOperation.kind == operationDelete || r.pendingOperation.kind == operationReload {
+			var cmd tea.Cmd
+			r.operationSpinner, cmd = r.operationSpinner.Update(msg)
+			return r, cmd
+		}
 	case clipboardInitializedMsg:
 		if !r.clipboardPending {
 			return r, nil
@@ -163,7 +176,11 @@ func (r *RootModel) getContentSize() (int, int) {
 func (r RootModel) renderBottomBar(width, height int) string {
 	bar := r.bottomBar
 	if r.activeView == screenList {
-		bar.SetStatus(r.list.GlobalNotice())
+		status := r.list.GlobalNotice()
+		if r.pendingOperation.kind == operationDelete || r.pendingOperation.kind == operationReload {
+			status = r.operationSpinner.View() + " " + status
+		}
+		bar.SetStatus(status)
 	}
 	// Keep the footer compact and preserve room for the active view. Extremely
 	// small terminals still get one row of prioritized recovery guidance.

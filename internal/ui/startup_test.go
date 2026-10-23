@@ -100,7 +100,7 @@ func TestClipboardResultCanArriveAfterLoginWithoutLosingOtherNotices(t *testing.
 	require.NoError(t, os.Remove(configPath))
 	require.NoError(t, os.Mkdir(configPath, 0o755)) // Make settings save fail after successful auth.
 	sendRoot(t, &r, tea.WindowSizeMsg{Width: 120, Height: 30})
-	sendRoot(t, &r, login.LoginSubmitMsg{DBPath: "vault.kdbx"})
+	submitLogin(t, &r, login.LoginSubmitMsg{DBPath: "vault.kdbx"})
 	assert.Equal(t, screenList, r.activeView)
 	require.Error(t, r.configSaveError)
 	sendRoot(t, &r, list.CopyPasswordRequestMsg{ID: id})
@@ -144,7 +144,7 @@ func TestClipboardStartupFailureDoesNotPreventVaultUse(t *testing.T) {
 	drainRoot(t, &r, r.Init())
 	require.Error(t, r.clipboardError)
 	sendRoot(t, &r, tea.WindowSizeMsg{Width: 120, Height: 30})
-	sendRoot(t, &r, login.LoginSubmitMsg{DBPath: "vault.kdbx"})
+	submitLogin(t, &r, login.LoginSubmitMsg{DBPath: "vault.kdbx"})
 	assert.Equal(t, screenList, r.activeView)
 	assert.Contains(t, r.View().Content, "Clipboard unavailable")
 	sendRoot(t, &r, list.CopyPasswordRequestMsg{ID: id})

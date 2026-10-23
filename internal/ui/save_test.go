@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -18,6 +19,7 @@ import (
 )
 
 type outcomeVault struct {
+	snapshotReads   atomic.Int64
 	authCalls       int
 	authCredentials service.Credentials
 	authPassword    string
@@ -47,7 +49,10 @@ func (v *outcomeVault) ReAuthenticate() error {
 	}
 	return v.reloadErr
 }
-func (v *outcomeVault) GetEntriesFlat() []service.VaultEntry { return v.entries }
+func (v *outcomeVault) GetEntriesFlat() []service.VaultEntry {
+	v.snapshotReads.Add(1)
+	return append([]service.VaultEntry(nil), v.entries...)
+}
 func (v *outcomeVault) GetEntryPassword(id gokeepasslib.UUID) (string, error) {
 	v.passwordReads++
 	return v.passwords[id], nil
@@ -86,7 +91,7 @@ func (v *outcomeVault) DeleteEntry(id gokeepasslib.UUID) error {
 func rootWithVault(t *testing.T, vault *outcomeVault) RootModel {
 	t.Helper()
 	r := RootModel{activeView: screenList, db: vault, list: list.NewListModel(), width: 120, height: 30}
-	r.list.SetEntries(vault.entries)
+	r.list.SetEntries(vault.GetEntriesFlat())
 	r.list.SetListTableSize(110, 25)
 	return r
 }

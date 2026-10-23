@@ -109,6 +109,13 @@ failure disables copying without blocking vault use. Check clipboard readiness
 before retrieving a password for copying, and preserve independent notices as
 individual startup/config/copy errors recover.
 
+Run vault authentication, mutations, and reauthentication through `tea.Cmd`.
+Commands capture immutable inputs and return entry snapshots; only `Update`
+changes UI state. Root accepts one vault operation at a time and validates its
+full identity before applying completion. Do not read the vault from `Update`
+while a worker may hold its lock. Quit key requests wait for accepted work to
+finish rather than abandoning a potentially committed save.
+
 Run checks appropriate to the change:
 
 ```sh

@@ -6,6 +6,12 @@ import (
 )
 
 func (r RootModel) handleKeyPressMsg(msg tea.KeyPressMsg) (RootModel, tea.Cmd, bool) {
+	if r.pendingOperation.kind != operationNone {
+		if msg.String() == control.QuitApplication || (msg.String() == control.QuitApplicationAlt && r.activeView == screenList && !r.list.IsTextInputActive()) {
+			r.quitAfterOperation = true
+		}
+		return r, nil, true
+	}
 	switch msg.String() {
 	case control.QuitApplication:
 		return r, tea.Quit, true

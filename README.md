@@ -10,6 +10,8 @@ Default keymap. Planned to be configurable in the config
 
 - `Ctrl+C` or `Q` - quit the application
 
+If a vault operation is in progress, a quit request waits for its result.
+
 ### Login view
 
 - `Enter` and `Shift + enter` - navigate the form and submit
@@ -40,6 +42,10 @@ Default keymap. Planned to be configurable in the config
 
 Application-wide warnings and global save/reload notices appear in a root-level
 bottom bar. Draft-specific errors remain beside the form values.
+
+Authentication, saves, and conflict reloads run in the background. Loading
+indicators and resizing remain responsive; further vault actions and form input
+wait until the current operation finishes.
 
 - Failed saves keep the form values. Correct the problem, review the draft, and
   submit again to retry; saves are never retried automatically.
