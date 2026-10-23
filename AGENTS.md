@@ -24,6 +24,10 @@ Lip Gloss.
 Follow the surrounding naming and structure. Keep business logic in services and
 UI state transitions in the relevant Bubble Tea models.
 
+Before implementing, look for similar code and existing helpers that can be
+reused or extended. Keep code clean and readable: avoid duplication, unnecessary
+abstractions, and extra files or helpers that add more noise than clarity.
+
 ## Scope and Roadmap Work
 
 - Implement the requested task and its verification. Do not silently expand a
@@ -58,6 +62,8 @@ UI state transitions in the relevant Bubble Tea models.
 - Vault-specific helpers belong in
   `internal/service/vault_test_helpers_test.go`. Shared helpers belong in
   `internal/util/testutil/`.
+- Root UI test fakes and shared command-driving helpers belong in
+  `internal/ui/test_helpers_test.go`.
 - Helpers that accept `*testing.T` must call `t.Helper()` so failures point to
   the calling test.
 - Concurrent test workers should return errors. Run fatal assertions on the test
@@ -145,10 +151,10 @@ for native runtime verification of persistence behavior.
   - `refactor: pin vault paths and capture database baseline`
   - `test: improve test coverage for services`
   - `ci: create coverage report on test run`
-- Add a commit body when useful to explain motivation, important design choices,
-  or behavior changes that the subject cannot capture. Separate it from the
-  subject with a blank line. Document breaking changes with a `BREAKING CHANGE:`
-  footer when applicable.
+- Use a commit body only when necessary to explain important context that the
+  subject cannot capture. Prefer a subject-only commit. Separate a needed body
+  from the subject with a blank line. Document breaking changes with a
+  `BREAKING CHANGE:` footer when applicable.
 - Run the repository hooks normally. Do not bypass them. If a hook fails, fix the
   issue and retry the commit.
 - After committing, verify status and report the commit hash and message.

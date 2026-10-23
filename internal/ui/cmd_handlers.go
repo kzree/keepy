@@ -29,10 +29,8 @@ func (r RootModel) handleLoginSubmitMsg(msg login.LoginSubmitMsg) (RootModel, te
 		config = *r.cfg
 		config.Credentials = creds
 	}
-	op := r.beginVaultOperation(operationLogin, msg.RequestID)
-	vault := r.db
-	return r, func() tea.Msg {
-		result := vaultOperationResult{operation: op}
+	return r.startVaultOperation(operationLogin, msg.RequestID, func(vault vaultSession) vaultOperationResult {
+		result := vaultOperationResult{}
 		result.err = vault.Authenticate(msg.DBPath, msg.KeyFilePath, msg.Password, msg.KeyFilePath != "")
 		if result.err == nil {
 			result.entries = vault.GetEntriesFlat()
@@ -40,7 +38,7 @@ func (r RootModel) handleLoginSubmitMsg(msg login.LoginSubmitMsg) (RootModel, te
 			result.configError = service.SaveConfig(&config)
 		}
 		return result
-	}
+	})
 }
 
 func (r RootModel) handleCopyPasswordRequestMsg(msg list.CopyPasswordRequestMsg) (RootModel, tea.Cmd) {
@@ -86,8 +84,7 @@ func (r RootModel) handleSubmitEntry(msg entryform.SubmitEntryMsg) (RootModel, t
 	if !r.canStartVaultOperation() || !r.list.AcceptsFormSubmission(msg.RequestID) {
 		return r, nil
 	}
-	vault := r.db
-	return r.startFormSave(msg.RequestID, func() error { return vault.AddNewEntry(msg.Entry) })
+	return r.startMutation(operationFormSave, msg.RequestID, func(vault vaultSession) error { return vault.AddNewEntry(msg.Entry) })
 }
 
 func (r RootModel) handleEditEntryRequestMsg(msg list.EditEntryRequestMsg) (RootModel, tea.Cmd) {
@@ -110,57 +107,14 @@ func (r RootModel) handleSubmitEditEntry(msg entryform.SubmitEditEntryMsg) (Root
 	if !r.canStartVaultOperation() || !r.list.AcceptsFormSubmission(msg.RequestID) {
 		return r, nil
 	}
-	vault := r.db
-	return r.startFormSave(msg.RequestID, func() error { return vault.UpdateEntry(msg.ID, msg.Entry) })
-}
-
-func (r RootModel) startFormSave(requestID uint64, mutate func() error) (RootModel, tea.Cmd) {
-	op := r.beginVaultOperation(operationFormSave, requestID)
-	vault := r.db
-	return r, func() tea.Msg {
-		result := vaultOperationResult{operation: op, err: mutate()}
-		if saveCommitted(result.err) {
-			result.entries = vault.GetEntriesFlat()
-		}
-		return result
-	}
-}
-
-func saveCommitted(err error) bool {
-	var outcome *service.SaveError
-	return err == nil || (errors.As(err, &outcome) && outcome.Committed())
-}
-
-// finishFormSave closes a form for every committed outcome. Reporting a committed
-// durability error as a form failure would offer a retry of an applied mutation.
-func (r RootModel) finishFormSave(err error, entries []service.VaultEntry) (RootModel, tea.Cmd) {
-	if !saveCommitted(err) {
-		var cmd tea.Cmd
-		r.list, cmd = r.list.Update(entryform.SubmitFailedMsg{Error: err})
-		r.resizeViews()
-		return r, cmd
-	}
-
-	r.list.SetEntries(entries)
-	var cmd tea.Cmd
-	r.list, cmd = r.list.Update(entryform.SubmitSuccessMsg{Warning: err})
-	r.resizeViews()
-	return r, cmd
+	return r.startMutation(operationFormSave, msg.RequestID, func(vault vaultSession) error { return vault.UpdateEntry(msg.ID, msg.Entry) })
 }
 
 func (r RootModel) handleDeleteEntryRequestMsg(msg list.DeleteEntryRequestMsg) (RootModel, tea.Cmd) {
 	if !r.canStartVaultOperation() || !r.list.AcceptsDelete(msg.RequestID) {
 		return r, nil
 	}
-	op := r.beginVaultOperation(operationDelete, msg.RequestID)
-	vault := r.db
-	return r, tea.Batch(r.operationSpinner.Tick, func() tea.Msg {
-		result := vaultOperationResult{operation: op, err: vault.DeleteEntry(msg.ID)}
-		if saveCommitted(result.err) {
-			result.entries = vault.GetEntriesFlat()
-		}
-		return result
-	})
+	return r.startMutation(operationDelete, msg.RequestID, func(vault vaultSession) error { return vault.DeleteEntry(msg.ID) })
 }
 
 // Reload is explicit and never repeats the conflicted mutation. Draft state is
@@ -169,10 +123,8 @@ func (r RootModel) handleReloadVault(msg list.ReloadVaultRequestMsg) (RootModel,
 	if !r.canStartVaultOperation() || !r.list.AcceptsReload(msg.RequestID) {
 		return r, nil
 	}
-	op := r.beginVaultOperation(operationReload, msg.RequestID)
-	vault := r.db
-	return r, tea.Batch(r.operationSpinner.Tick, func() tea.Msg {
-		result := vaultOperationResult{operation: op, err: vault.ReAuthenticate()}
+	return r.startVaultOperation(operationReload, msg.RequestID, func(vault vaultSession) vaultOperationResult {
+		result := vaultOperationResult{err: vault.ReAuthenticate()}
 		if result.err == nil {
 			result.entries = vault.GetEntriesFlat()
 		} else {

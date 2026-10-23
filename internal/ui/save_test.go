@@ -3,7 +3,6 @@ package ui
 import (
 	"errors"
 	"fmt"
-	"sync/atomic"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -13,121 +12,8 @@ import (
 	"github.com/tobischo/gokeepasslib/v3"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/ui/common"
-	"kzree.com/keepy/internal/ui/list"
 	"kzree.com/keepy/internal/ui/list/entryform"
-	"kzree.com/keepy/internal/util/testutil"
 )
-
-type outcomeVault struct {
-	snapshotReads   atomic.Int64
-	authCalls       int
-	authCredentials service.Credentials
-	authPassword    string
-	authUsesKey     bool
-	passwordReads   int
-	authErr         error
-	entries         []service.VaultEntry
-	passwords       map[gokeepasslib.UUID]string
-	saveErr         error
-	reloadErr       error
-	reloaded        []service.VaultEntry
-	mutations       int
-	reloads         int
-}
-
-func (v *outcomeVault) Authenticate(dbPath, keyPath, password string, useKey bool) error {
-	v.authCalls++
-	v.authCredentials = service.Credentials{DBPath: dbPath, KeyFilePath: keyPath}
-	v.authPassword = password
-	v.authUsesKey = useKey
-	return v.authErr
-}
-func (v *outcomeVault) ReAuthenticate() error {
-	v.reloads++
-	if v.reloadErr == nil {
-		v.entries = v.reloaded
-	}
-	return v.reloadErr
-}
-func (v *outcomeVault) GetEntriesFlat() []service.VaultEntry {
-	v.snapshotReads.Add(1)
-	return append([]service.VaultEntry(nil), v.entries...)
-}
-func (v *outcomeVault) GetEntryPassword(id gokeepasslib.UUID) (string, error) {
-	v.passwordReads++
-	return v.passwords[id], nil
-}
-func (v *outcomeVault) AddNewEntry(entry service.NewVaultEntry) error {
-	v.mutations++
-	if saveCommitted(v.saveErr) {
-		v.entries = append(v.entries, service.VaultEntry{ID: gokeepasslib.NewUUID(), Title: entry.Title})
-	}
-	return v.saveErr
-}
-func (v *outcomeVault) UpdateEntry(id gokeepasslib.UUID, entry service.NewVaultEntry) error {
-	v.mutations++
-	if saveCommitted(v.saveErr) {
-		for i := range v.entries {
-			if v.entries[i].ID == id {
-				v.entries[i].Title = entry.Title
-			}
-		}
-	}
-	return v.saveErr
-}
-func (v *outcomeVault) DeleteEntry(id gokeepasslib.UUID) error {
-	v.mutations++
-	if saveCommitted(v.saveErr) {
-		for i := range v.entries {
-			if v.entries[i].ID == id {
-				v.entries = append(v.entries[:i], v.entries[i+1:]...)
-				break
-			}
-		}
-	}
-	return v.saveErr
-}
-
-func rootWithVault(t *testing.T, vault *outcomeVault) RootModel {
-	t.Helper()
-	r := RootModel{activeView: screenList, db: vault, list: list.NewListModel(), width: 120, height: 30}
-	r.list.SetEntries(vault.GetEntriesFlat())
-	r.list.SetListTableSize(110, 25)
-	return r
-}
-
-func sendRoot(t *testing.T, r *RootModel, msg tea.Msg) {
-	t.Helper()
-	model, cmd := r.Update(msg)
-	*r = model.(RootModel)
-	testutil.DrainTeaCommands(t, cmd, func(msg tea.Msg) tea.Cmd {
-		model, cmd := r.Update(msg)
-		*r = model.(RootModel)
-		return cmd
-	})
-}
-
-func submitThroughUI(t *testing.T, r *RootModel, operation string) {
-	t.Helper()
-	if operation == "delete" {
-		sendRoot(t, r, tea.KeyPressMsg(tea.Key{Code: 'd'}))
-		sendRoot(t, r, tea.KeyPressMsg(tea.Key{Code: 'y'}))
-		return
-	}
-	open := 'n'
-	if operation == "update" {
-		open = 'e'
-	}
-	sendRoot(t, r, tea.KeyPressMsg(tea.Key{Code: open}))
-	sendRoot(t, r, tea.KeyPressMsg(tea.Key{Code: 'a', Mod: tea.ModCtrl}))
-	sendRoot(t, r, tea.KeyPressMsg(tea.Key{Code: 'k', Mod: tea.ModCtrl}))
-	for _, char := range "Committed" {
-		sendRoot(t, r, tea.KeyPressMsg(tea.Key{Code: char, Text: string(char)}))
-	}
-	for range 4 {
-		sendRoot(t, r, tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-	}
-}
 
 func TestCommittedSaveOutcomesRefreshWithoutRepeatingMutation(t *testing.T) {
 	for _, operation := range []string{"add", "update", "delete"} {
@@ -242,19 +128,8 @@ func TestDeferredSubmissionIsAcceptedAtMostOnce(t *testing.T) {
 	for range 3 {
 		sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	}
-	model, cmd := r.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-	r = model.(RootModel)
-	var request entryform.SubmitEntryMsg
-	testutil.DrainTeaCommands(t, cmd, func(msg tea.Msg) tea.Cmd {
-		if submit, ok := msg.(entryform.SubmitEntryMsg); ok {
-			request = submit
-			return nil
-		}
-		model, cmd := r.Update(msg)
-		r = model.(RootModel)
-		return cmd
-	})
-	require.NotZero(t, request.RequestID)
+	cmd := updateRoot(&r, tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	request := captureEntrySubmission(t, &r, cmd)
 	sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape})) // Pending form cannot close.
 	assert.True(t, r.list.IsTextInputActive())
 	sendRoot(t, &r, request)
@@ -286,24 +161,10 @@ func TestEscapeClosesSynchronouslyWithoutAffectingNewDraft(t *testing.T) {
 			for range 3 {
 				sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 			}
-			model, cmd := r.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-			r = model.(RootModel)
-			testutil.DrainTeaCommands(t, cmd, func(msg tea.Msg) tea.Cmd {
-				if submit, ok := msg.(entryform.SubmitEntryMsg); ok {
-					request = submit
-					return nil
-				}
-				model, cmd := r.Update(msg)
-				r = model.(RootModel)
-				return cmd
-			})
-			require.NotZero(t, request.RequestID)
+			cmd := updateRoot(&r, tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+			request = captureEntrySubmission(t, &r, cmd)
 		}
-		testutil.DrainTeaCommands(t, oldInit, func(msg tea.Msg) tea.Cmd {
-			model, cmd := r.Update(msg)
-			r = model.(RootModel)
-			return cmd
-		})
+		drainRoot(t, &r, oldInit)
 		assert.True(t, r.list.IsTextInputActive())
 		if phase == 1 {
 			sendRoot(t, &r, request)

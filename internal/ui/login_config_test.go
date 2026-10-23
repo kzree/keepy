@@ -15,17 +15,6 @@ import (
 	"kzree.com/keepy/internal/util/testutil"
 )
 
-func submitLogin(t *testing.T, r *RootModel, msg login.LoginSubmitMsg) {
-	t.Helper()
-	r.activeView = screenLogin
-	r.login = login.NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: msg.DBPath, KeyFilePath: msg.KeyFilePath}})
-	drainRoot(t, r, r.login.Init())
-	for _, char := range msg.Password {
-		sendRoot(t, r, tea.KeyPressMsg(tea.Key{Code: char, Text: string(char)}))
-	}
-	sendRoot(t, r, tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-}
-
 func TestLoginPreservesPreferencesAndUpdatesCredentials(t *testing.T) {
 	testutil.TempHome(t)
 	before := &service.Config{Preferences: service.Preferences{Locale: "saved-locale"}, Credentials: service.Credentials{DBPath: "old.kdbx", KeyFilePath: "old.key"}}

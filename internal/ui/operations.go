@@ -1,12 +1,28 @@
 package ui
 
 import (
+	"errors"
+
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
+	"github.com/tobischo/gokeepasslib/v3"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/ui/list"
+	"kzree.com/keepy/internal/ui/list/entryform"
 	"kzree.com/keepy/internal/ui/login"
 )
+
+// vaultSession keeps the UI dependent on operation outcomes, not persistence
+// internals. The production implementation is a shared *service.Vault.
+type vaultSession interface {
+	Authenticate(string, string, string, bool) error
+	ReAuthenticate() error
+	GetEntriesFlat() []service.VaultEntry
+	GetEntryPassword(gokeepasslib.UUID) (string, error)
+	AddNewEntry(service.NewVaultEntry) error
+	UpdateEntry(gokeepasslib.UUID, service.NewVaultEntry) error
+	DeleteEntry(gokeepasslib.UUID) error
+}
 
 type vaultOperationKind uint8
 
@@ -17,6 +33,10 @@ const (
 	operationDelete
 	operationReload
 )
+
+func (kind vaultOperationKind) usesGlobalSpinner() bool {
+	return kind == operationDelete || kind == operationReload
+}
 
 type pendingVaultOperation struct {
 	id        uint64
@@ -41,11 +61,56 @@ func (r RootModel) canStartVaultOperation() bool {
 func (r *RootModel) beginVaultOperation(kind vaultOperationKind, requestID uint64) pendingVaultOperation {
 	r.operationSequence++
 	r.pendingOperation = pendingVaultOperation{id: r.operationSequence, kind: kind, requestID: requestID}
-	if kind == operationDelete || kind == operationReload {
+	if kind.usesGlobalSpinner() {
 		r.operationSpinner = spinner.New(spinner.WithSpinner(spinner.Dot))
 	}
 	r.resizeViews()
 	return r.pendingOperation
+}
+
+// startVaultOperation owns common command plumbing. The callback captures only
+// operation inputs and returns data; it must not access or update UI models.
+// Callers validate admission and the source request before invoking it.
+func (r RootModel) startVaultOperation(kind vaultOperationKind, requestID uint64, work func(vaultSession) vaultOperationResult) (RootModel, tea.Cmd) {
+	op := r.beginVaultOperation(kind, requestID)
+	vault := r.db
+	cmd := func() tea.Msg {
+		result := work(vault)
+		result.operation = op
+		return result
+	}
+	if kind.usesGlobalSpinner() {
+		return r, tea.Batch(r.operationSpinner.Tick, cmd)
+	}
+	return r, cmd
+}
+
+func (r RootModel) startMutation(kind vaultOperationKind, requestID uint64, mutate func(vaultSession) error) (RootModel, tea.Cmd) {
+	return r.startVaultOperation(kind, requestID, func(vault vaultSession) vaultOperationResult {
+		result := vaultOperationResult{err: mutate(vault)}
+		if saveCommitted(result.err) {
+			result.entries = vault.GetEntriesFlat()
+		}
+		return result
+	})
+}
+
+func saveCommitted(err error) bool {
+	var outcome *service.SaveError
+	return err == nil || (errors.As(err, &outcome) && outcome.Committed())
+}
+
+// finishFormSave closes a form for every committed outcome. Reporting a committed
+// durability error as a form failure would offer a retry of an applied mutation.
+func (r RootModel) finishFormSave(err error, entries []service.VaultEntry) (RootModel, tea.Cmd) {
+	var result tea.Msg = entryform.SubmitFailedMsg{Error: err}
+	if saveCommitted(err) {
+		r.list.SetEntries(entries)
+		result = entryform.SubmitSuccessMsg{Warning: err}
+	}
+	var cmd tea.Cmd
+	r.list, cmd = r.list.Update(result)
+	return r, cmd
 }
 
 func (r RootModel) handleVaultOperationResult(msg vaultOperationResult) (RootModel, tea.Cmd) {

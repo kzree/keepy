@@ -12,7 +12,6 @@ import (
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/ui/list"
 	"kzree.com/keepy/internal/ui/login"
-	"kzree.com/keepy/internal/util/testutil"
 )
 
 func TestRootBottomBarOwnsGlobalNoticesAndRestoresViewSpace(t *testing.T) {
@@ -47,11 +46,7 @@ func TestRootBottomBarRemainsGlobalAcrossScreensAndNarrowResizes(t *testing.T) {
 		r.activeView = view
 		if view == screenLogin {
 			r.login = login.NewLoginModel(&service.Config{})
-			testutil.DrainTeaCommands(t, r.login.Init(), func(msg tea.Msg) tea.Cmd {
-				model, cmd := r.Update(msg)
-				r = model.(RootModel)
-				return cmd
-			})
+			drainRoot(t, &r, r.login.Init())
 		}
 		for _, size := range [][2]int{{120, 30}, {60, 18}, {20, 6}} {
 			sendRoot(t, &r, tea.WindowSizeMsg{Width: size[0], Height: size[1]})

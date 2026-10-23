@@ -16,15 +16,6 @@ import (
 	"kzree.com/keepy/internal/util/testutil"
 )
 
-func drainRoot(t *testing.T, r *RootModel, cmd tea.Cmd) {
-	t.Helper()
-	testutil.DrainTeaCommands(t, cmd, func(msg tea.Msg) tea.Cmd {
-		model, cmd := r.Update(msg)
-		*r = model.(RootModel)
-		return cmd
-	})
-}
-
 func TestMalformedConfigRequiresExplicitRecoveryWithoutOverwrite(t *testing.T) {
 	home := testutil.TempHome(t)
 	path := filepath.Join(home, ".config", "keepy", "config.toml")

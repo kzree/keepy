@@ -52,14 +52,12 @@ func (v *gatedVault) ReAuthenticate() error { v.wait("reload"); return v.outcome
 // then leaves its work command unexecuted so tests can control completion timing.
 func captureVaultCommand(t *testing.T, r *RootModel, msg tea.Msg) tea.Cmd {
 	t.Helper()
-	model, cmd := r.Update(msg)
-	*r = model.(RootModel)
+	cmd := updateRoot(r, msg)
 	work := cmd
 	if r.pendingOperation.kind == operationNone {
 		work = nil
 		testutil.DrainTeaCommands(t, cmd, func(msg tea.Msg) tea.Cmd {
-			model, cmd := r.Update(msg)
-			*r = model.(RootModel)
+			cmd := updateRoot(r, msg)
 			if r.pendingOperation.kind != operationNone {
 				work = cmd
 				return nil
