@@ -116,3 +116,12 @@ func TestAuthenticationFailureAllowsKeyboardCorrectionAndExplicitRetry(t *testin
 	assert.True(t, fake.authUsesKey)
 	assert.Equal(t, "saved-locale", r.cfg.Preferences.Locale)
 }
+
+func TestCommittedConfigSaveIsNotReportedAsUnsaved(t *testing.T) {
+	r := rootWithVault(t, &outcomeVault{})
+	r.configSaveError = &service.ConfigDurabilityError{Err: errors.New("directory sync failed")}
+	r.updateApplicationNotice()
+	view := r.View().Content
+	assert.Contains(t, view, "settings saved, but their durability could not be confirmed: directory sync failed")
+	assert.NotContains(t, view, "could not be saved")
+}

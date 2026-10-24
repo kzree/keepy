@@ -22,6 +22,7 @@ var enApplication = map[string]string{
 	key.NoticeConfigLoad:           "%s: retry configuration loading. %v",
 	key.NoticeClipboardUnavailable: "Clipboard unavailable. Restore clipboard access and restart to enable copying: %v",
 	key.NoticeConfigSave:           "Vault opened, but settings could not be saved: %v",
+	key.NoticeConfigSaveUncertain:  "Vault opened and settings saved, but their durability could not be confirmed: %v",
 	key.NoticeCopyFailed:           "Copy failed: %v",
 	key.NoticeKeymapInvalid:        "Key binding overrides ignored; using defaults. Correct [keybindings] and restart: %v",
 	key.ErrorClipboardNotReady:     "clipboard is not ready",

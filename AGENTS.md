@@ -91,6 +91,12 @@ abstractions, and extra files or helpers that add more noise than clarity.
   durability. Do not label legacy failures as transactional outcomes until their
   guarantees are implemented.
 - Never automatically retry a mutation whose replacement has already committed.
+- Config saves serialize first and reuse the same-directory temp-file and atomic
+  replacement primitives, writing through symlinks and keeping existing
+  permissions. Failures before replacement leave the previous config intact; a
+  committed save with an unconfirmed durability step returns
+  `*ConfigDurabilityError` and is reported as saved. Config saves have no
+  conflict detection and are not part of the vault mutation contract.
 
 ## Verification
 

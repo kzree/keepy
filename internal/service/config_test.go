@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,45 +30,87 @@ key_file_path = "~/vault.key"
 	assert.Equal(t, "~/vault.key", cfg.Credentials.KeyFilePath)
 }
 
-type failingConfigWriter struct {
-	writeErr error
-	closeErr error
-	short    bool
-	closed   bool
+// writeTestConfig creates a config in a temporary home and returns its path.
+func writeTestConfig(t *testing.T, data string, mode os.FileMode) string {
+	t.Helper()
+	path := filepath.Join(testutil.TempHome(t), ".config", "keepy", "config.toml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(data), mode))
+	return path
 }
 
-func (w *failingConfigWriter) Write(data []byte) (int, error) {
-	if w.writeErr != nil {
-		return 0, w.writeErr
-	}
-	if w.short {
-		return len(data) - 1, nil
-	}
-	return len(data), nil
-}
-
-func (w *failingConfigWriter) Close() error { w.closed = true; return w.closeErr }
-
-func TestConfigWriteReportsWriteShortWriteAndCloseFailures(t *testing.T) {
-	writeErr, closeErr := errors.New("write failed"), errors.New("close failed")
-	for _, scenario := range []struct {
-		name   string
-		writer failingConfigWriter
-		causes []error
-	}{
-		{"write", failingConfigWriter{writeErr: writeErr}, []error{writeErr}},
-		{"close", failingConfigWriter{closeErr: closeErr}, []error{closeErr}},
-		{"both", failingConfigWriter{writeErr: writeErr, closeErr: closeErr}, []error{writeErr, closeErr}},
-		{"short", failingConfigWriter{short: true, closeErr: closeErr}, []error{io.ErrShortWrite, closeErr}},
+func TestConfigReplacementFailuresKeepPreviousConfig(t *testing.T) {
+	injected := errors.New("injected failure")
+	for name, inject := range map[string]func(*vaultPersistence){
+		"create temp": func(p *vaultPersistence) {
+			p.createTemp = func(string, string) (vaultTempFile, error) { return nil, injected }
+		},
+		"write":   func(p *vaultPersistence) { captureTestTempFile(p).writeErr = injected },
+		"short":   func(p *vaultPersistence) { captureTestTempFile(p).shortWrite = true },
+		"chmod":   func(p *vaultPersistence) { captureTestTempFile(p).chmodErr = injected },
+		"sync":    func(p *vaultPersistence) { captureTestTempFile(p).syncErr = injected },
+		"close":   func(p *vaultPersistence) { captureTestTempFile(p).closeErr = injected },
+		"replace": func(p *vaultPersistence) { p.replace = func(string, string) (bool, error) { return false, injected } },
 	} {
-		t.Run(scenario.name, func(t *testing.T) {
-			err := writeConfig(&scenario.writer, []byte("configuration"))
-			for _, cause := range scenario.causes {
-				require.ErrorIs(t, err, cause)
+		t.Run(name, func(t *testing.T) {
+			path := writeTestConfig(t, "[preferences]\nlocale = 'en'\n", 0o644)
+			p := newConfigPersistence()
+			inject(p)
+
+			err := replaceConfig(p, path, []byte("[preferences]\nlocale = 'replacement'\n"))
+
+			require.Error(t, err)
+			if name == "short" {
+				require.ErrorIs(t, err, io.ErrShortWrite)
+			} else {
+				require.ErrorIs(t, err, injected)
 			}
-			assert.True(t, scenario.writer.closed)
+			assert.Contains(t, err.Error(), "config")
+			assert.NotContains(t, err.Error(), "database")
+			assert.Equal(t, "[preferences]\nlocale = 'en'\n", string(readTestFile(t, path)))
+			assertNoVaultTemps(t, path)
 		})
 	}
+}
+
+func TestConfigDirectorySyncFailureReportsCommittedSave(t *testing.T) {
+	path := writeTestConfig(t, "old", 0o644)
+	injected := errors.New("directory sync failed")
+	p := newConfigPersistence()
+	p.syncDirectory = func(string) error { return injected }
+
+	err := replaceConfig(p, path, []byte("new"))
+
+	require.ErrorIs(t, err, injected)
+	var durability *ConfigDurabilityError
+	require.ErrorAs(t, err, &durability)
+	assert.Equal(t, "new", string(readTestFile(t, path)))
+	assertNoVaultTemps(t, path)
+}
+
+func TestSaveConfigPreservesSymlinkAndPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not expose Unix permission bits")
+	}
+	home := testutil.TempHome(t)
+	target := filepath.Join(home, "dotfiles", "keepy.toml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
+	require.NoError(t, os.WriteFile(target, []byte("old"), 0o640))
+	link := filepath.Join(home, ".config", "keepy", "config.toml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(link), 0o755))
+	symlinkTestFile(t, target, link)
+
+	require.NoError(t, SaveConfig(&Config{Preferences: Preferences{Locale: "en"}}))
+
+	info, err := os.Lstat(link)
+	require.NoError(t, err)
+	assert.NotZero(t, info.Mode()&os.ModeSymlink, "the link must not be replaced by a regular file")
+	assert.Contains(t, string(readTestFile(t, target)), "locale = 'en'")
+	targetInfo, err := os.Stat(target)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o640), targetInfo.Mode().Perm())
+	assertNoVaultTemps(t, target)
+	assertNoVaultTemps(t, link)
 }
 
 func TestConfigReturnsHomeResolutionErrors(t *testing.T) {
@@ -129,7 +172,7 @@ func TestSaveConfigRoundTrip(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
-func TestSaveConfigTruncatesExistingConfig(t *testing.T) {
+func TestSaveConfigReplacesLongerExistingConfig(t *testing.T) {
 	home := testutil.TempHome(t)
 	configPath := filepath.Join(home, configPathFromHome, configFileName)
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/pelletier/go-toml/v2"
 	"kzree.com/keepy/internal/util"
@@ -76,6 +77,19 @@ func LoadConfig() (*Config, error) {
 	return &cfg, nil
 }
 
+// ConfigDurabilityError reports that the new config replaced the old one, but a
+// later durability check failed. Saving again is safe; the config is not lost.
+type ConfigDurabilityError struct{ Err error }
+
+func (e *ConfigDurabilityError) Error() string {
+	return "config saved, but durability could not be confirmed: " + e.Err.Error()
+}
+
+func (e *ConfigDurabilityError) Unwrap() error { return e.Err }
+
+// SaveConfig serializes before touching the file, then replaces it atomically
+// through a same-directory temporary file. Any error before replacement leaves
+// the previous config intact; a *ConfigDurabilityError means it was replaced.
 func SaveConfig(config *Config) error {
 	data, err := toml.Marshal(config)
 	if err != nil {
@@ -85,19 +99,42 @@ func SaveConfig(config *Config) error {
 	if err != nil {
 		return err
 	}
-	file, err := util.OpenOrCreateFileAndTruncate(path)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return replaceConfig(newConfigPersistence(), path, data)
+}
+
+func newConfigPersistence() *vaultPersistence {
+	p := newVaultPersistence()
+	p.subject = "config"
+	return p
+}
+
+// replaceConfig writes through a symlinked config to its target, so links
+// managed by dotfile tools survive, and keeps an existing file's permissions.
+func replaceConfig(p *vaultPersistence, path string, data []byte) error {
+	mode := os.FileMode(0o644)
+	if target, err := filepath.EvalSymlinks(path); err == nil {
+		path = target
+		info, err := os.Stat(path)
+		if err != nil {
+			return err
+		}
+		mode = info.Mode().Perm()
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	prepared, err := p.prepare(path, mode, func(w io.Writer) error {
+		_, err := w.Write(data)
+		return err
+	})
 	if err != nil {
 		return err
 	}
-	return writeConfig(file, data)
-}
-
-// writeConfig owns and closes the writer, preserving write and close causes.
-// Config saving is not a vault transaction and does not promise file rollback.
-func writeConfig(file io.WriteCloser, data []byte) error {
-	n, err := file.Write(data)
-	if err == nil && n != len(data) {
-		err = io.ErrShortWrite
+	committed, err := prepared.commit(path)
+	if committed && err != nil {
+		return &ConfigDurabilityError{Err: err}
 	}
-	return errors.Join(err, file.Close())
+	return err
 }

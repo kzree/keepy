@@ -94,17 +94,3 @@ func TestOpenOrCreateFileKeepsExistingContents(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "existing contents", string(contents))
 }
-
-func TestOpenOrCreateFileAndTruncateClearsExistingContents(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "nested", "file.txt")
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte("existing contents"), 0o644))
-
-	file, err := OpenOrCreateFileAndTruncate(path)
-	require.NoError(t, err)
-	require.NoError(t, file.Close())
-
-	contents, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Empty(t, contents)
-}

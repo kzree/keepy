@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -55,7 +56,10 @@ func (r *RootModel) updateApplicationNotice() {
 		// in this process cannot recover an initialization failure.
 		notices = append(notices, fmt.Sprintf(r.t.Text(key.NoticeClipboardUnavailable), r.clipboardError))
 	}
-	if r.configSaveError != nil {
+	var durability *service.ConfigDurabilityError
+	if errors.As(r.configSaveError, &durability) {
+		notices = append(notices, fmt.Sprintf(r.t.Text(key.NoticeConfigSaveUncertain), durability.Err))
+	} else if r.configSaveError != nil {
 		notices = append(notices, fmt.Sprintf(r.t.Text(key.NoticeConfigSave), r.configSaveError))
 	}
 	if r.copyError != nil {

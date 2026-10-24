@@ -9,6 +9,7 @@ const (
 	NoticeConfigLoad           = "NOTICE_CONFIG_LOAD"
 	NoticeClipboardUnavailable = "NOTICE_CLIPBOARD_UNAVAILABLE"
 	NoticeConfigSave           = "NOTICE_CONFIG_SAVE"
+	NoticeConfigSaveUncertain  = "NOTICE_CONFIG_SAVE_UNCERTAIN"
 	NoticeCopyFailed           = "NOTICE_COPY_FAILED"
 	NoticeKeymapInvalid        = "NOTICE_KEYMAP_INVALID"
 	ErrorClipboardNotReady     = "ERROR_CLIPBOARD_NOT_READY"

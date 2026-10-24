@@ -38,11 +38,14 @@ type vaultTempFile interface {
 	Close() error
 }
 
-// vaultPersistence is a per-vault filesystem boundary. Tests can replace
-// operations before use; hooks must not be modified concurrently with vault
-// operations. Preparation does not mutate or lock a database: the caller
-// supplies an encoder for an already isolated, encoding-ready database.
+// vaultPersistence is a per-vault filesystem boundary, also reused for atomic
+// config replacement. Tests can replace operations before use; hooks must not be
+// modified concurrently with vault operations. Preparation does not mutate or
+// lock a database: the caller supplies an encoder for an already isolated,
+// encoding-ready database.
 type vaultPersistence struct {
+	// subject names the persisted file in preparation and replacement errors.
+	subject    string
 	open       func(string) (vaultReadFile, error)
 	createTemp func(string, string) (vaultTempFile, error)
 	remove     func(string) error
@@ -56,7 +59,8 @@ type vaultPersistence struct {
 
 func newVaultPersistence() *vaultPersistence {
 	return &vaultPersistence{
-		open: func(path string) (vaultReadFile, error) { return os.Open(path) },
+		subject: "database",
+		open:    func(path string) (vaultReadFile, error) { return os.Open(path) },
 		createTemp: func(dir, pattern string) (vaultTempFile, error) {
 			return os.CreateTemp(dir, pattern)
 		},
@@ -119,20 +123,20 @@ type preparedVaultFile struct {
 func (p *vaultPersistence) prepare(destination string, mode os.FileMode, encode func(io.Writer) error) (prepared *preparedVaultFile, err error) {
 	destination, err = filepath.Abs(destination)
 	if err != nil {
-		return nil, persistenceError("resolve database destination", err)
+		return nil, persistenceError("resolve "+p.subject+" destination", err)
 	}
 	file, err := p.createTemp(filepath.Dir(destination), ".keepy-*.tmp")
 	if err != nil {
-		return nil, persistenceError("create temporary database", err)
+		return nil, persistenceError("create temporary "+p.subject, err)
 	}
 	path := file.Name()
 	closed := false
 	defer func() {
 		if !closed {
-			err = errors.Join(err, persistenceError("close temporary database", file.Close()))
+			err = errors.Join(err, persistenceError("close temporary "+p.subject, file.Close()))
 		}
 		if prepared == nil {
-			err = errors.Join(err, persistenceError("remove temporary database", p.remove(path)))
+			err = errors.Join(err, persistenceError("remove temporary "+p.subject, p.remove(path)))
 		}
 	}()
 	hash := sha256.New()
@@ -144,21 +148,21 @@ func (p *vaultPersistence) prepare(destination string, mode os.FileMode, encode 
 		encodeErr = errors.Join(encodeErr, writer.err)
 	}
 	if encodeErr != nil {
-		return nil, persistenceError("encode temporary database", encodeErr)
+		return nil, persistenceError("encode temporary "+p.subject, encodeErr)
 	}
 	if err := file.Chmod(mode.Perm()); err != nil {
-		return nil, persistenceError("set database permissions", err)
+		return nil, persistenceError("set "+p.subject+" permissions", err)
 	}
 	if err := file.Sync(); err != nil {
-		return nil, persistenceError("sync temporary database", err)
+		return nil, persistenceError("sync temporary "+p.subject, err)
 	}
 	info, err := file.Stat()
 	if err != nil {
-		return nil, persistenceError("stat temporary database", err)
+		return nil, persistenceError("stat temporary "+p.subject, err)
 	}
 	closed = true
 	if err := file.Close(); err != nil {
-		return nil, persistenceError("close temporary database", err)
+		return nil, persistenceError("close temporary "+p.subject, err)
 	}
 	var fingerprint [sha256.Size]byte
 	copy(fingerprint[:], hash.Sum(nil))
@@ -201,7 +205,7 @@ func (w *vaultEncodingWriter) Write(data []byte) (int, error) {
 // return uncommitted SaveError outcomes.
 func (f *preparedVaultFile) replace(destination string) (committed bool, err error) {
 	if f.path == "" {
-		return false, errors.New("temporary database already consumed")
+		return false, errors.New("temporary " + f.persistence.subject + " already consumed")
 	}
 	// Atomic replacement requires a same-directory prepared file. Resolve the
 	// absolute spelling before comparing to allow relative destinations in tests.
@@ -214,7 +218,7 @@ func (f *preparedVaultFile) replace(destination string) (committed bool, err err
 		return false, err
 	}
 	if fromDir != toDir {
-		return false, errors.New("database replacement must stay in the prepared directory")
+		return false, errors.New(f.persistence.subject + " replacement must stay in the prepared directory")
 	}
 	intended, err := filepath.Abs(f.destination)
 	if err != nil {
@@ -225,7 +229,7 @@ func (f *preparedVaultFile) replace(destination string) (committed bool, err err
 		return false, err
 	}
 	if intended != actual {
-		return false, errors.New("replacement destination differs from the prepared database")
+		return false, errors.New("replacement destination differs from the prepared " + f.persistence.subject)
 	}
 	if f.expected != nil {
 		if err := f.persistence.checkBaseline(destination, *f.expected); err != nil {
@@ -237,10 +241,10 @@ func (f *preparedVaultFile) replace(destination string) (committed bool, err err
 		f.path = ""
 	}
 	if err != nil {
-		return committed, persistenceError("replace database", err)
+		return committed, persistenceError("replace "+f.persistence.subject, err)
 	}
 	if !committed {
-		return false, errors.New("database replacement returned without a commit")
+		return false, errors.New(f.persistence.subject + " replacement returned without a commit")
 	}
 	return true, nil
 }
@@ -258,7 +262,7 @@ func (f *preparedVaultFile) commit(destination string) (committed bool, err erro
 		return committed, err
 	}
 	if err := f.persistence.syncDirectory(filepath.Dir(destination)); err != nil {
-		return true, persistenceError("sync database directory", err)
+		return true, persistenceError("sync "+f.persistence.subject+" directory", err)
 	}
 	return true, nil
 }
@@ -268,7 +272,7 @@ func (f *preparedVaultFile) discard() error {
 		return nil
 	}
 	if err := f.persistence.remove(f.path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return persistenceError("remove temporary database", err)
+		return persistenceError("remove temporary "+f.persistence.subject, err)
 	}
 	f.path = ""
 	return nil
