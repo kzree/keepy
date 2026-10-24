@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/viewport"
@@ -24,13 +25,47 @@ type KeymapHelpModel struct {
 	busy          bool
 	groups        []control.KeymapGroup
 	keys          control.Keymap
+	keysIgnored   bool
 	t             *textprovider.TextProvider
 }
 
-func NewKeymapHelpModel(l locale.Locale, keys control.Keymap) KeymapHelpModel {
+// keysIgnored reports that invalid config overrides were rejected, so help
+// must not suggest that any configured binding is active.
+func NewKeymapHelpModel(l locale.Locale, keys control.Keymap, keysIgnored bool) KeymapHelpModel {
 	v := viewport.New()
 	v.KeyMap = control.HelpViewportKeyMap()
-	return KeymapHelpModel{viewport: v, groups: control.KeymapGroups(l, keys), keys: keys, t: textprovider.New(l, namespace.Help)}
+	return KeymapHelpModel{viewport: v, groups: control.KeymapGroups(l, keys), keys: keys, keysIgnored: keysIgnored, t: textprovider.New(l, namespace.Help)}
+}
+
+const customMarker = "✱"
+
+var (
+	customStyle  = lipgloss.NewStyle().Foreground(lipgloss.Yellow)
+	defaultStyle = lipgloss.NewStyle().Foreground(lipgloss.BrightBlack)
+)
+
+// entryLine marks customized bindings and highlights only keys that differ
+// from the defaults. The default suffix is dropped first when space is short.
+func (m KeymapHelpModel) entryLine(entry control.HelpEntry) string {
+	prefix := "  "
+	keys := make([]string, len(entry.Keys()))
+	for i, k := range entry.Keys() {
+		keys[i] = k
+		if entry.Default != nil && !slices.Contains(entry.Default, k) {
+			keys[i] = customStyle.Render(k)
+		}
+	}
+	if entry.Default != nil {
+		prefix = customStyle.Render(customMarker) + " "
+	}
+	line := prefix + strings.Join(keys, " / ") + " — " + entry.Help().Desc
+	if entry.Default != nil {
+		suffix := " " + defaultStyle.Render(fmt.Sprintf(m.t.Text(key.HelpDefaultKeys), strings.Join(entry.Default, " / ")))
+		if lipgloss.Width(line+suffix) <= m.width {
+			line += suffix
+		}
+	}
+	return line
 }
 
 func (m *KeymapHelpModel) SetSize(width, height int) {
@@ -61,14 +96,22 @@ func (m *KeymapHelpModel) updateContent() {
 	if m.busy {
 		body.WriteString(m.t.Text(key.HelpBusy) + "\n")
 	}
+	customized := slices.ContainsFunc(m.groups, func(group control.KeymapGroup) bool {
+		return slices.ContainsFunc(group.Bindings, func(entry control.HelpEntry) bool { return entry.Default != nil })
+	})
+	if m.keysIgnored {
+		body.WriteString(m.t.Text(key.HelpKeysIgnored) + "\n")
+	} else if customized {
+		body.WriteString(fmt.Sprintf(m.t.Text(key.HelpCustomLegend), customStyle.Render(customMarker)) + "\n")
+	}
 	for _, group := range m.groups {
 		title := group.Title
 		if group.ID == m.context {
 			title = fmt.Sprintf(m.t.Text(key.HelpCurrentGroup), title)
 		}
 		body.WriteString("\n" + lipgloss.NewStyle().Foreground(lipgloss.BrightBlue).Bold(true).Render(title) + "\n")
-		for _, binding := range group.Bindings {
-			body.WriteString("  " + strings.Join(binding.Keys(), " / ") + " — " + binding.Help().Desc + "\n")
+		for _, entry := range group.Bindings {
+			body.WriteString(m.entryLine(entry) + "\n")
 		}
 	}
 	m.viewport.SetContent(ansi.Wrap(body.String(), max(1, m.width), " "))

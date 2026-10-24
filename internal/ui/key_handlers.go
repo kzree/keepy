@@ -11,7 +11,7 @@ func (r RootModel) handleKeyPressMsg(msg tea.KeyPressMsg) (RootModel, tea.Cmd, b
 	if key.Matches(msg, r.keys.ShowHelpAnywhere) || (key.Matches(msg, r.keys.ShowHelp) && (r.helpVisible || !r.isTextInputActive())) {
 		r.helpVisible = !r.helpVisible
 		if r.helpVisible {
-			r.keymapHelp = common.NewKeymapHelpModel(r.locale, r.keys)
+			r.keymapHelp = common.NewKeymapHelpModel(r.locale, r.keys, r.keymapError != nil)
 		}
 		r.resizeViews()
 		return r, nil, true

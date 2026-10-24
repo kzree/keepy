@@ -146,7 +146,9 @@ Keepy rejects overrides that conflict with them or with another action in the
 same view, and keys that would type text in a text input. If any override is
 invalid, all overrides are ignored, defaults are used, and the bottom bar lists
 the problems; login is not blocked and the file is not rewritten. The help view
-always shows the keys in effect.
+always shows the keys in effect: customized bindings are marked with `✱`, keys
+that differ from the defaults are highlighted, and the default is shown when the
+terminal is wide enough.
 
 ## Todo for v1.0
 

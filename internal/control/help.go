@@ -1,6 +1,7 @@
 package control
 
 import (
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -31,7 +32,14 @@ const (
 type KeymapGroup struct {
 	ID       string
 	Title    string
-	Bindings []key.Binding
+	Bindings []HelpEntry
+}
+
+// HelpEntry is a displayed binding. Default is set only for a configurable
+// action whose effective keys differ from its defaults.
+type HelpEntry struct {
+	key.Binding
+	Default []string
 }
 
 var keyLabels = map[string]string{"up": "↑", "down": "↓", "pgup": "PgUp", "pgdown": "PgDn"}
@@ -123,9 +131,17 @@ func HelpViewportKeyMap() viewport.KeyMap {
 // enabled in every mode (or while a vault operation is pending).
 func KeymapGroups(l locale.Locale, keys Keymap) []KeymapGroup {
 	t := textprovider.New(l, namespace.Help)
-	bind := func(text string, keys ...string) key.Binding { return binding(t.Text(text), keys...) }
+	bind := func(text string, keys ...string) HelpEntry { return HelpEntry{Binding: binding(t.Text(text), keys...)} }
+	defaults := DefaultKeymap()
+	action := func(text string, effective, initial key.Binding) HelpEntry {
+		entry := bind(text, effective.Keys()...)
+		if !slices.Equal(effective.Keys(), initial.Keys()) {
+			entry.Default = initial.Keys()
+		}
+		return entry
+	}
 	form := huh.NewDefaultKeyMap().Input
-	navigation := []key.Binding{
+	navigation := []HelpEntry{
 		bind(tk.BindNextField, form.Next.Keys()...),
 		bind(tk.BindPrevField, form.Prev.Keys()...),
 		bind(tk.BindSubmitLast, form.Submit.Keys()...),
@@ -134,41 +150,41 @@ func KeymapGroups(l locale.Locale, keys Keymap) []KeymapGroup {
 	help := HelpViewportKeyMap()
 	picker := LoginPickerKeyMap()
 	return []KeymapGroup{
-		{GlobalKeys, t.Text(tk.GroupGlobal), []key.Binding{
-			bind(tk.BindHelpAnywhere, keys.ShowHelpAnywhere.Keys()...),
-			bind(tk.BindHelp, keys.ShowHelp.Keys()...),
-			bind(tk.BindQuit, keys.Quit.Keys()...),
-			bind(tk.BindQuitAlt, keys.QuitAlt.Keys()...),
+		{GlobalKeys, t.Text(tk.GroupGlobal), []HelpEntry{
+			action(tk.BindHelpAnywhere, keys.ShowHelpAnywhere, defaults.ShowHelpAnywhere),
+			action(tk.BindHelp, keys.ShowHelp, defaults.ShowHelp),
+			action(tk.BindQuit, keys.Quit, defaults.Quit),
+			action(tk.BindQuitAlt, keys.QuitAlt, defaults.QuitAlt),
 		}},
-		{LoginKeys, t.Text(tk.GroupLogin), append(append([]key.Binding{}, navigation...),
-			bind(tk.BindTogglePaths, keys.LoginTogglePaths.Keys()...),
-			bind(tk.BindBrowseDatabase, keys.LoginBrowseDatabase.Keys()...),
-			bind(tk.BindBrowseKeyFile, keys.LoginBrowseKeyFile.Keys()...),
-			bind(tk.BindToggleKeyFile, keys.LoginToggleKeyFile.Keys()...))},
-		{FilePickerKeys, t.Text(tk.GroupFilePicker), []key.Binding{
+		{LoginKeys, t.Text(tk.GroupLogin), append(append([]HelpEntry{}, navigation...),
+			action(tk.BindTogglePaths, keys.LoginTogglePaths, defaults.LoginTogglePaths),
+			action(tk.BindBrowseDatabase, keys.LoginBrowseDatabase, defaults.LoginBrowseDatabase),
+			action(tk.BindBrowseKeyFile, keys.LoginBrowseKeyFile, defaults.LoginBrowseKeyFile),
+			action(tk.BindToggleKeyFile, keys.LoginToggleKeyFile, defaults.LoginToggleKeyFile))},
+		{FilePickerKeys, t.Text(tk.GroupFilePicker), []HelpEntry{
 			bind(tk.BindUp, picker.Up.Keys()...), bind(tk.BindDown, picker.Down.Keys()...),
 			bind(tk.BindPageUp, picker.PageUp.Keys()...), bind(tk.BindPageDown, picker.PageDown.Keys()...),
 			bind(tk.BindFirst, picker.GoToTop.Keys()...), bind(tk.BindLast, picker.GoToLast.Keys()...),
 			bind(tk.BindParentDirectory, picker.Back.Keys()...),
 			bind(tk.BindOpenOrSelect, "enter"), bind(tk.BindOpenDirectory, "l", "right"),
-			bind(tk.BindCancelBrowsing, CloseEntryForm), bind(tk.BindRetryDirectory, keys.Reload.Keys()...),
+			bind(tk.BindCancelBrowsing, CloseEntryForm), action(tk.BindRetryDirectory, keys.Reload, defaults.Reload),
 		}},
-		{ListKeys, t.Text(tk.GroupList), []key.Binding{
-			bind(tk.BindCopy, keys.CopyEntry.Keys()...),
-			bind(tk.BindCreate, keys.NewEntry.Keys()...), bind(tk.BindEdit, keys.EditEntry.Keys()...),
-			bind(tk.BindDelete, keys.DeleteEntry.Keys()...),
-			bind(tk.BindSearch, keys.Search.Keys()...), bind(tk.BindClearFilter, keys.ClearFilter.Keys()...),
+		{ListKeys, t.Text(tk.GroupList), []HelpEntry{
+			action(tk.BindCopy, keys.CopyEntry, defaults.CopyEntry),
+			action(tk.BindCreate, keys.NewEntry, defaults.NewEntry), action(tk.BindEdit, keys.EditEntry, defaults.EditEntry),
+			action(tk.BindDelete, keys.DeleteEntry, defaults.DeleteEntry),
+			action(tk.BindSearch, keys.Search, defaults.Search), action(tk.BindClearFilter, keys.ClearFilter, defaults.ClearFilter),
 			bind(tk.BindUp, tableKeys.LineUp.Keys()...), bind(tk.BindDown, tableKeys.LineDown.Keys()...),
 			bind(tk.BindPageUp, tableKeys.PageUp.Keys()...), bind(tk.BindPageDown, tableKeys.PageDown.Keys()...),
 			bind(tk.BindHalfPageUp, tableKeys.HalfPageUp.Keys()...), bind(tk.BindHalfPageDown, tableKeys.HalfPageDown.Keys()...),
 			bind(tk.BindFirst, tableKeys.GotoTop.Keys()...), bind(tk.BindLast, tableKeys.GotoBottom.Keys()...),
 		}},
-		{SearchKeys, t.Text(tk.GroupSearch), []key.Binding{bind(tk.BindCloseSearch, "enter", "esc")}},
-		{EntryFormKeys, t.Text(tk.GroupEntryForm), append(append([]key.Binding{}, navigation...),
-			bind(tk.BindGeneratePassword, keys.GeneratePassword.Keys()...), bind(tk.BindCancelDraft, CloseEntryForm))},
-		{ConfirmationKeys, t.Text(tk.GroupConfirmation), []key.Binding{bind(tk.BindConfirmDelete, keys.Confirm.Keys()...), bind(tk.BindCancelDelete, keys.Cancel.Keys()...)}},
-		{RecoveryKeys, t.Text(tk.GroupRecovery), []key.Binding{bind(tk.BindRecovery, keys.Reload.Keys()...)}},
-		{HelpKeys, t.Text(tk.GroupHelp), []key.Binding{
+		{SearchKeys, t.Text(tk.GroupSearch), []HelpEntry{bind(tk.BindCloseSearch, "enter", "esc")}},
+		{EntryFormKeys, t.Text(tk.GroupEntryForm), append(append([]HelpEntry{}, navigation...),
+			action(tk.BindGeneratePassword, keys.GeneratePassword, defaults.GeneratePassword), bind(tk.BindCancelDraft, CloseEntryForm))},
+		{ConfirmationKeys, t.Text(tk.GroupConfirmation), []HelpEntry{action(tk.BindConfirmDelete, keys.Confirm, defaults.Confirm), action(tk.BindCancelDelete, keys.Cancel, defaults.Cancel)}},
+		{RecoveryKeys, t.Text(tk.GroupRecovery), []HelpEntry{action(tk.BindRecovery, keys.Reload, defaults.Reload)}},
+		{HelpKeys, t.Text(tk.GroupHelp), []HelpEntry{
 			bind(tk.BindCloseHelp, append([]string{CloseEntryForm}, append(keys.ShowHelp.Keys(), keys.ShowHelpAnywhere.Keys()...)...)...),
 			bind(tk.BindUp, help.Up.Keys()...), bind(tk.BindDown, help.Down.Keys()...),
 			bind(tk.BindPageUp, help.PageUp.Keys()...), bind(tk.BindPageDown, help.PageDown.Keys()...),
