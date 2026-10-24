@@ -16,6 +16,7 @@ const savingText = "Saving entry..."
 
 type EntryFormModel struct {
 	form        *huh.Form
+	inputs      []*huh.Input
 	loading     bool
 	spinner     spinner.Model
 	submitError error
@@ -34,9 +35,11 @@ func NewEntryFormModel() EntryFormModel {
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.BrightRed)
 
 	values := getEmptyFormValues()
+	form, inputs := newEntryForm(values)
 	return EntryFormModel{
 		formValues: values,
-		form:       newEntryForm(values),
+		form:       form,
+		inputs:     inputs,
 		loading:    false,
 		spinner:    s,
 	}
@@ -117,6 +120,9 @@ func (m EntryFormModel) View() string {
 		}
 	}
 	if status != "" {
+		if body == "" {
+			return status
+		}
 		return lipgloss.JoinVertical(lipgloss.Left, body, status)
 	}
 	return body
@@ -145,7 +151,11 @@ func (m EntryFormModel) statusView() string {
 		s = s.Width(m.width)
 	}
 	if m.height > 0 {
-		s = s.MaxHeight(m.height)
+		budget := max(0, m.height-2)
+		if budget == 0 {
+			return ""
+		}
+		s = s.MaxHeight(budget)
 	}
 	return s.Render(body)
 }
@@ -155,10 +165,16 @@ func (m *EntryFormModel) resizeForm() {
 	if height > 0 {
 		height = max(1, height-lipgloss.Height(m.statusView()))
 	}
-	m.form.WithWidth(m.width).WithHeight(height)
+	for _, input := range m.inputs {
+		input.Inline(m.width <= 0 || m.width >= 32)
+	}
+	m.form.WithShowHelp(m.height <= 0 || height >= 4).WithWidth(m.width).WithHeight(height)
 }
 
 func (m *EntryFormModel) SetSize(width, height int) {
+	if m.width == width && m.height == height {
+		return
+	}
 	m.width, m.height = width, height
 	m.resizeForm()
 	form, _ := m.form.Update(tea.WindowSizeMsg{
@@ -178,13 +194,14 @@ func (m *EntryFormModel) reset() {
 	m.conflict = false
 	m.reviewDraft = false
 	m.formValues = getEmptyFormValues()
-	m.form = newEntryForm(m.formValues).WithWidth(m.width).WithHeight(m.height)
+	m.form, m.inputs = newEntryForm(m.formValues)
+	m.resizeForm()
 }
 
 // restartForm preserves draft values but resets completion/focus. A failed save
 // must require a new user submission, never a retry triggered by another message.
 func (m *EntryFormModel) restartForm() tea.Cmd {
-	m.form = newEntryForm(m.formValues).WithWidth(m.width).WithHeight(m.height)
+	m.form, m.inputs = newEntryForm(m.formValues)
 	m.resizeForm()
 	return m.form.Init()
 }

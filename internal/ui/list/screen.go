@@ -9,18 +9,15 @@ import (
 
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/tobischo/gokeepasslib/v3"
 	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
-	"kzree.com/keepy/internal/style"
 	"kzree.com/keepy/internal/textprovider"
 	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/textprovider/namespace"
 	"kzree.com/keepy/internal/ui/common"
 	"kzree.com/keepy/internal/ui/list/entryform"
 	"kzree.com/keepy/internal/ui/list/search"
-	"kzree.com/keepy/internal/util"
 )
 
 type pane int
@@ -32,11 +29,6 @@ const (
 	createPane
 )
 
-const (
-	paneGap      = 1
-	promptHeight = 2
-)
-
 type ListModel struct {
 	showSearch       bool
 	showSidePane     bool
@@ -44,6 +36,7 @@ type ListModel struct {
 	activePane       pane
 	table            table.Model
 	copyFlashID      int
+	copyFlashActive  bool
 	entries          []service.VaultEntry
 	filteredEntries  []service.VaultEntry
 	filter           string
@@ -162,6 +155,10 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 		if !m.showDeletePrompt || m.deleting || msg.RequestID != m.deleteRequestID {
 			return m, nil
 		}
+		var cmd tea.Cmd
+		m.confirm, cmd = m.confirm.Update(msg)
+		m.resizeTable()
+		return m, cmd
 	case tea.KeyPressMsg:
 		if m.reloading || m.deleting {
 			return m, nil
@@ -317,98 +314,13 @@ func (m *ListModel) FilterEntries(val string) {
 		}
 	}
 	m.table.SetRows(entriesToRows(filtered))
-	// SetCursor alone does not scroll Bubbles' viewport to reveal the row.
-	m.table.GotoTop()
-	if len(filtered) > 0 {
-		m.table.MoveDown(target)
-	}
+	m.restoreTableCursor(target)
 }
 
 func clearCopyFlashCmd(id int) tea.Cmd {
 	return tea.Tick(copyFlashDuration, func(time.Time) tea.Msg {
 		return copyFlashDoneMsg{id: id}
 	})
-}
-
-func (m ListModel) renderPane(isActive bool, width, height int, content string) string {
-	style := style.GetPaneStyle(isActive)
-	frameW, frameH := style.GetFrameSize()
-	return style.
-		Width(max(0, width-frameW)).
-		Height(max(0, height-frameH)).
-		Render(content)
-}
-
-func (m *ListModel) getPaneWidths(contentWidth int) (int, int) {
-	availableWidth := max(0, contentWidth-paneGap)
-	third := availableWidth / 3
-
-	leftWidth := util.Ternary(m.showSidePane, third*2, availableWidth)
-	rightWidth := third
-
-	return leftWidth, rightWidth
-}
-
-func (m *ListModel) resizeEntryForm(rightWidth int) {
-	paneStyle := style.GetPaneStyle(m.activePane == createPane)
-	frameW, frameH := paneStyle.GetFrameSize()
-	m.entryForm.SetSize(
-		max(0, rightWidth-frameW),
-		max(0, m.height-frameH),
-	)
-}
-
-func (m *ListModel) SetListTableSize(contentWidth, contentHeight int) {
-	if m.width == contentWidth && m.height == contentHeight {
-		return
-	}
-	m.width = contentWidth
-	m.height = contentHeight
-
-	m.resizeTable()
-}
-
-func (m *ListModel) resizeTable() {
-	leftWidth, rightWidth := m.getPaneWidths(m.width)
-	baseHeight := max(1, m.height)
-	m.table.SetWidth(leftWidth)
-	m.table.SetHeight(util.Ternary(m.showSearch || m.showDeletePrompt, baseHeight-promptHeight, baseHeight))
-
-	if m.showSidePane {
-		m.resizeEntryForm(rightWidth)
-	}
-}
-
-func (m ListModel) View(contentWidth, contentHeight int) string {
-	leftWidth, rightWidth := m.getPaneWidths(contentWidth)
-	paneHeight := max(0, contentHeight)
-
-	left := m.table.View()
-	if m.showSearch {
-		left = lipgloss.JoinVertical(lipgloss.Left, m.search.View(), m.table.View())
-	} else if m.showDeletePrompt {
-		left = lipgloss.JoinVertical(lipgloss.Left, m.table.View(), m.confirm.View())
-	}
-	left = boundedView(left, leftWidth, paneHeight)
-	right := ""
-	if m.showSidePane && paneHeight > 0 {
-		right = boundedView(m.renderPane(m.activePane == createPane, rightWidth, paneHeight, m.entryForm.View()), rightWidth, paneHeight)
-	}
-
-	body := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		left,
-		strings.Repeat(" ", paneGap),
-		right,
-	)
-	return body
-}
-
-func boundedView(body string, width, height int) string {
-	if width <= 0 || height <= 0 {
-		return ""
-	}
-	return lipgloss.NewStyle().MaxWidth(width).MaxHeight(height).Render(body)
 }
 
 // GlobalNotice exposes operation status to the root BottomBar. Draft-specific

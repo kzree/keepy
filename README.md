@@ -94,6 +94,17 @@ wait until the current operation finishes.
   list refreshes from the committed vault. The warning remains visible; do not
   repeat the mutation.
 
+### Responsive layout
+
+The entry table sizes its columns to the available space. On narrower screens,
+group and URL columns are hidden first, then username/email; titles remain visible.
+Title/username filtering still works when the username column is hidden. Entry
+forms use a side pane when there is enough room, or the full content area
+otherwise. Narrow forms stack labels above inputs.
+
+Resizing preserves filters, selection, draft values, and the focused field.
+The BottomBar and help screen keep their own bounded space.
+
 ### Startup recovery
 
 If the configuration cannot be read or parsed, Keepy shows the error in the
@@ -122,7 +133,7 @@ Ordinary clipboard-write failures can be retried explicitly with `C`.
 - [x] i18n
 - [ ] Proper error handling
 - [ ] Tests
-- [ ] Responsive TUI
+- [x] Responsive TUI
 
 ## Post release roadmap
 

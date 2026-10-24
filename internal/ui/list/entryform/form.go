@@ -33,34 +33,37 @@ func getEmptyFormValues() *entryFormValues {
 	}
 }
 
-func newEntryForm(values *entryFormValues) *huh.Form {
+func newEntryForm(values *entryFormValues) (*huh.Form, []*huh.Input) {
 	t := textprovider.New(locale.En, namespace.List)
-	return huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title(t.Text(key.LabelTitle)).
-				Key(titleKey).
-				Value(&values.Title).
-				Prompt(": ").
-				Inline(true),
-			huh.NewInput().
-				Title(t.Text(key.LabelUsername)).
-				Key(usernameKey).
-				Value(&values.Username).
-				Prompt(": ").
-				Inline(true),
-			huh.NewInput().
-				Title(t.Text(key.LabelURL)).
-				Key(urlKey).
-				Value(&values.URL).
-				Prompt(": ").
-				Inline(true),
-			huh.NewInput().
-				Title(t.Text(key.LabelPassword)).
-				Key(passwordKey).
-				Value(&values.Password).
-				Prompt(": ").
-				Inline(true),
-		),
-	).WithTheme(util.GetFormTheme())
+	inputs := []*huh.Input{
+		huh.NewInput().
+			Title(t.Text(key.LabelTitle)).
+			Key(titleKey).
+			Value(&values.Title).
+			Prompt(": ").
+			Inline(true),
+		huh.NewInput().
+			Title(t.Text(key.LabelUsername)).
+			Key(usernameKey).
+			Value(&values.Username).
+			Prompt(": ").
+			Inline(true),
+		huh.NewInput().
+			Title(t.Text(key.LabelURL)).
+			Key(urlKey).
+			Value(&values.URL).
+			Prompt(": ").
+			Inline(true),
+		huh.NewInput().
+			Title(t.Text(key.LabelPassword)).
+			Key(passwordKey).
+			Value(&values.Password).
+			Prompt(": ").
+			Inline(true),
+	}
+	fields := make([]huh.Field, len(inputs))
+	for i, input := range inputs {
+		fields[i] = input
+	}
+	return huh.NewForm(huh.NewGroup(fields...)).WithTheme(util.GetFormTheme()), inputs
 }

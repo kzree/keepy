@@ -31,6 +31,7 @@ func (m ListModel) handleOpenEditEntryMsg(msg OpenEditEntryMsg) (ListModel, tea.
 
 func (m ListModel) handleCopyFlashDoneMsg(msg copyFlashDoneMsg) (ListModel, tea.Cmd) {
 	if msg.id == m.copyFlashID {
+		m.copyFlashActive = false
 		setSelectedStyle(&m.table, normalSelectedStyle())
 	}
 	return m, nil
@@ -38,6 +39,7 @@ func (m ListModel) handleCopyFlashDoneMsg(msg copyFlashDoneMsg) (ListModel, tea.
 
 func (m ListModel) handleCopyPasswordSuccessMsg() (ListModel, tea.Cmd) {
 	m.copyFlashID++
+	m.copyFlashActive = true
 	setSelectedStyle(&m.table, copiedSelectedStyle())
 	return m, clearCopyFlashCmd(m.copyFlashID)
 }
@@ -56,6 +58,7 @@ func (m ListModel) handleCloseDeletePrompt(msg common.CloseConfirmMsg) (ListMode
 		return m, nil
 	}
 	m.showDeletePrompt = false
+	m.resizeTable()
 	if msg.Success {
 		m.deleting = true
 		cmd := msg.Cmd

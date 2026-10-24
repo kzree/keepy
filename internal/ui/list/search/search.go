@@ -2,6 +2,7 @@
 package search
 
 import (
+	"charm.land/lipgloss/v2"
 	"fmt"
 
 	"charm.land/bubbles/v2/textinput"
@@ -14,6 +15,7 @@ type SearchModel struct {
 	input textinput.Model
 	value string
 	t     *textprovider.TextProvider
+	width int
 }
 
 type ClearSearchMsg struct{}
@@ -48,10 +50,22 @@ func (m SearchModel) Update(msg tea.Msg) (SearchModel, tea.Cmd) {
 }
 
 func (m SearchModel) View() string {
+	if m.width > 0 && m.width < 12 {
+		return m.input.View()
+	}
 	return fmt.Sprintf(
 		m.t.Text(key.LabelSearch),
 		m.input.View(),
 	)
+}
+
+func (m *SearchModel) SetWidth(width int) {
+	m.width = width
+	prefix := lipgloss.Width(fmt.Sprintf(m.t.Text(key.LabelSearch), ""))
+	if width < 12 {
+		prefix = 0
+	}
+	m.input.SetWidth(max(1, width-prefix))
 }
 
 func (m SearchModel) Value() string {

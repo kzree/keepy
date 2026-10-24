@@ -110,6 +110,11 @@ navigation maps. `?` opens help only outside text inputs; `F1` works everywhere.
 Help preserves underlying screen models and continues processing background
 completions. Help input must not trigger actions in the underlying view.
 
+Responsive layout changes preserve filters, selected entry identity, draft values,
+and form focus. Resize existing form models rather than rebuilding them. Keep the
+table's row schema stable when hiding columns, and include cell padding and pane
+borders in width/height budgets.
+
 Login updates saved credentials without resetting existing preferences. A config
 save error is reported separately and must not undo successful authentication or
 prevent using the opened vault.
