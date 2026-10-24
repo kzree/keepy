@@ -4,6 +4,7 @@ package service
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -113,11 +114,14 @@ func (v *Vault) Authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 func (v *Vault) authenticate(dbPath, keyFilePath, password string, useKeyFile bool) error {
 	dbAbsPath, err := resolveVaultPath(dbPath)
 	if err != nil {
-		return v.handleAuthError(err)
+		return v.handleAuthError(&AuthFileError{File: AuthDatabase, Err: err})
 	}
 	snapshot, err := v.persistenceBackend().read(dbAbsPath)
 	if err != nil {
-		return v.handleAuthError(err)
+		return v.handleAuthError(&AuthFileError{File: AuthDatabase, Err: err})
+	}
+	if !hasKDBXSignature(snapshot.data) {
+		return v.handleAuthError(ErrNotDatabase)
 	}
 	db := gokeepasslib.NewDatabase()
 	resolvedKeyFile := keyFilePath
@@ -125,7 +129,7 @@ func (v *Vault) authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 	if useKeyFile {
 		keyFile, err := resolveVaultPath(keyFilePath)
 		if err != nil {
-			return v.handleAuthError(err)
+			return v.handleAuthError(&AuthFileError{File: AuthKeyFile, Err: err})
 		}
 
 		// The library's path-based key loader does not close its file in v3.6.2.
@@ -133,19 +137,18 @@ func (v *Vault) authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 		// byte-based parser preserves all supported KeePass key-file formats.
 		keyData, err := os.ReadFile(keyFile)
 		if err != nil {
-			return v.handleAuthError(err)
+			return v.handleAuthError(&AuthFileError{File: AuthKeyFile, Err: err})
 		}
 		creds, err := gokeepasslib.NewPasswordAndKeyDataCredentials(password, keyData)
 		if err != nil {
-			return v.handleAuthError(err)
+			return v.handleAuthError(&AuthFileError{File: AuthKeyFile, Err: err})
 		}
 		db.Credentials = creds
 		resolvedKeyFile = keyFile
 	} else {
 		db.Credentials = gokeepasslib.NewPasswordCredentials(password)
 	}
-	err = gokeepasslib.NewDecoder(bytes.NewReader(snapshot.data)).Decode(db)
-	if err != nil {
+	if err := decodeDatabase(snapshot.data, db); err != nil {
 		return v.handleAuthError(err)
 	}
 
@@ -165,6 +168,22 @@ func (v *Vault) authenticate(dbPath, keyFilePath, password string, useKeyFile bo
 	v.password = password
 	v.useKeyFile = useKeyFile
 
+	return nil
+}
+
+// decodeDatabase decodes a file with a valid KDBX signature. The library's
+// decode errors are unexported and cannot tell wrong credentials from a damaged
+// file, and it panics on some truncated files (e.g. "input not full blocks"),
+// so both are reported as ErrInvalidCredentials.
+func decodeDatabase(data []byte, db *gokeepasslib.Database) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%w (decoder: %v)", ErrInvalidCredentials, r)
+		}
+	}()
+	if err := gokeepasslib.NewDecoder(bytes.NewReader(data)).Decode(db); err != nil {
+		return fmt.Errorf("%w (%w)", ErrInvalidCredentials, err)
+	}
 	return nil
 }
 
@@ -225,11 +244,12 @@ func (v *Vault) GetEntriesFlat() []VaultEntry {
 	return entries
 }
 
+// GetEntryPassword returns the entry's password, which may be empty.
 func (v *Vault) GetEntryPassword(id gokeepasslib.UUID) (string, error) {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 	if !v.authenticated {
-		return "", nil
+		return "", ErrNotAuthenticated
 	}
 
 	for _, group := range v.db.Content.Root.Groups {
@@ -238,14 +258,14 @@ func (v *Vault) GetEntryPassword(id gokeepasslib.UUID) (string, error) {
 			return password, nil
 		}
 	}
-	return "", nil
+	return "", ErrEntryNotFound
 }
 
 func (v *Vault) AddNewEntry(entry NewVaultEntry) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if !v.authenticated {
-		return errors.New("vault is not authenticated")
+		return ErrNotAuthenticated
 	}
 
 	if len(v.db.Content.Root.Groups) == 0 {
@@ -262,7 +282,7 @@ func (v *Vault) UpdateEntry(id gokeepasslib.UUID, values NewVaultEntry) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if !v.authenticated {
-		return errors.New("vault is not authenticated")
+		return ErrNotAuthenticated
 	}
 
 	working := copyVaultDatabase(v.db)
@@ -272,7 +292,7 @@ func (v *Vault) UpdateEntry(id gokeepasslib.UUID, values NewVaultEntry) error {
 		}
 	}
 
-	return errors.New("failed to find entry to update")
+	return ErrEntryNotFound
 }
 
 func updateEntryByID(group *gokeepasslib.Group, id gokeepasslib.UUID, values NewVaultEntry) bool {
@@ -316,7 +336,7 @@ func (v *Vault) DeleteEntry(id gokeepasslib.UUID) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if !v.authenticated {
-		return errors.New("vault is not authenticated")
+		return ErrNotAuthenticated
 	}
 
 	working := copyVaultDatabase(v.db)
@@ -327,7 +347,7 @@ func (v *Vault) DeleteEntry(id gokeepasslib.UUID) error {
 		}
 	}
 
-	return errors.New("failed to find entry to delete")
+	return ErrEntryNotFound
 }
 
 // findAndDeleteEntryByID requires v.mu to be held for writing when group belongs
@@ -362,7 +382,7 @@ func (v *Vault) LockAndSave() error {
 // lockAndSave requires v.mu to be held for writing.
 func (v *Vault) lockAndSave() error {
 	if !v.authenticated {
-		return errors.New("vault is not authenticated")
+		return ErrNotAuthenticated
 	}
 	return v.saveWorkingDatabase(copyVaultDatabase(v.db))
 }

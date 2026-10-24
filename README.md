@@ -91,6 +91,9 @@ wait until the current operation finishes.
 - External-change conflicts block mutations until `Ctrl+R` reloads the database.
   The form draft is retained for review against the latest entries. Reloading
   does not repeat the pending mutation or automatically merge changes.
+- If the database file is moved or deleted while open, saves report it as
+  missing. Restore the file at its original path and press `Ctrl+R`; the draft is
+  kept for review. Keepy does not write the vault to a new location.
 - If a save commits but reports uncertain durability, the form closes and the
   list refreshes from the committed vault. The warning remains visible; do not
   repeat the mutation.
@@ -194,8 +197,8 @@ terminal is wide enough.
   - [x] Scrollable keymap help (`?` / `F1`)
   - [x] Configurable keybinds
 - [x] i18n
-- [ ] Proper error handling
-- [ ] Tests
+- [x] Proper error handling
+- [x] Tests
 - [x] Responsive TUI
 
 ## Post release roadmap

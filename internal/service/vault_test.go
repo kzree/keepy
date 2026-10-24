@@ -2,6 +2,7 @@ package service
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -327,26 +328,26 @@ func TestGetEntryPasswordFindsNestedEntryByID(t *testing.T) {
 	assert.Equal(t, "correct horse battery staple", password)
 }
 
-func TestGetEntryPasswordReturnsEmptyForMissingOrUnauthenticatedVault(t *testing.T) {
-	vault := newTestVault(gokeepasslib.Group{
-		Name:    "Root",
-		Entries: []gokeepasslib.Entry{newTestEntry("Present", "present@example.com", "password", "https://present.example")},
-	})
+func TestGetEntryPasswordDistinguishesEmptyMissingAndLocked(t *testing.T) {
+	empty := newTestEntry("Empty", "empty@example.com", "", "")
+	vault := newTestVault(gokeepasslib.Group{Name: "Root", Entries: []gokeepasslib.Entry{empty}})
 
-	password, err := vault.GetEntryPassword(gokeepasslib.NewUUID())
+	password, err := vault.GetEntryPassword(empty.UUID)
 	require.NoError(t, err)
 	assert.Empty(t, password)
 
-	password, err = NewVault().GetEntryPassword(gokeepasslib.NewUUID())
-	require.NoError(t, err)
-	assert.Empty(t, password)
+	_, err = vault.GetEntryPassword(gokeepasslib.NewUUID())
+	assert.ErrorIs(t, err, ErrEntryNotFound)
+
+	_, err = NewVault().GetEntryPassword(gokeepasslib.NewUUID())
+	assert.ErrorIs(t, err, ErrNotAuthenticated)
 }
 
 func TestAddNewEntryReturnsErrorWhenVaultCannotAcceptEntry(t *testing.T) {
 	t.Run("unauthenticated", func(t *testing.T) {
 		err := NewVault().AddNewEntry(NewVaultEntry{Title: "Example"})
 
-		assert.EqualError(t, err, "vault is not authenticated")
+		assert.ErrorIs(t, err, ErrNotAuthenticated)
 	})
 
 	t.Run("no groups", func(t *testing.T) {
@@ -386,10 +387,10 @@ func TestAddNewEntryPersistsEntriesAndPreservesPasswordsAcrossSaves(t *testing.T
 
 func TestUpdateEntryReturnsErrorsForUnauthenticatedAndMissingEntries(t *testing.T) {
 	values := NewVaultEntry{Title: "Updated"}
-	assert.EqualError(t, NewVault().UpdateEntry(gokeepasslib.NewUUID(), values), "vault is not authenticated")
+	assert.ErrorIs(t, NewVault().UpdateEntry(gokeepasslib.NewUUID(), values), ErrNotAuthenticated)
 
 	vault := newTestVault(gokeepasslib.Group{Name: "Root"})
-	assert.EqualError(t, vault.UpdateEntry(gokeepasslib.NewUUID(), values), "failed to find entry to update")
+	assert.ErrorIs(t, vault.UpdateEntry(gokeepasslib.NewUUID(), values), ErrEntryNotFound)
 }
 
 func TestUpdateEntryUpdatesNestedEntryAndPersists(t *testing.T) {
@@ -429,10 +430,10 @@ func TestUpdateEntryUpdatesNestedEntryAndPersists(t *testing.T) {
 }
 
 func TestDeleteEntryReturnsErrorsForUnauthenticatedAndMissingEntries(t *testing.T) {
-	assert.EqualError(t, NewVault().DeleteEntry(gokeepasslib.NewUUID()), "vault is not authenticated")
+	assert.ErrorIs(t, NewVault().DeleteEntry(gokeepasslib.NewUUID()), ErrNotAuthenticated)
 
 	vault := newTestVault(gokeepasslib.Group{Name: "Root"})
-	assert.EqualError(t, vault.DeleteEntry(gokeepasslib.NewUUID()), "failed to find entry to delete")
+	assert.ErrorIs(t, vault.DeleteEntry(gokeepasslib.NewUUID()), ErrEntryNotFound)
 }
 
 func TestDeleteEntryRemovesNestedEntryAndPersists(t *testing.T) {
@@ -470,7 +471,7 @@ func TestFindAndDeleteEntryByIDRemovesDirectEntry(t *testing.T) {
 
 func TestLockAndSaveReturnsPersistenceErrors(t *testing.T) {
 	t.Run("unauthenticated", func(t *testing.T) {
-		require.EqualError(t, NewVault().LockAndSave(), "vault is not authenticated")
+		require.ErrorIs(t, NewVault().LockAndSave(), ErrNotAuthenticated)
 	})
 	t.Run("lock protected entries", func(t *testing.T) {
 		vault := newPersistedTestVault(t, gokeepasslib.Group{Name: "Root"})
@@ -499,13 +500,64 @@ func TestCloseForgetsVaultUntilAuthenticatedAgain(t *testing.T) {
 	vault.Close()
 
 	assert.Empty(t, vault.GetEntriesFlat())
-	password, err := vault.GetEntryPassword(entry.UUID)
-	require.NoError(t, err)
-	assert.Empty(t, password)
+	_, err := vault.GetEntryPassword(entry.UUID)
+	assert.ErrorIs(t, err, ErrNotAuthenticated)
 	assert.Empty(t, vault.password)
 	require.Error(t, vault.AddNewEntry(NewVaultEntry{Title: "after close"}))
 	require.Error(t, vault.ReAuthenticate(), "reopening requires the password again")
 
 	require.NoError(t, vault.Authenticate("vault.kdbx", "", testVaultPassword, false))
 	assertEntryPassword(t, vault, entry.UUID, "secret")
+}
+
+func TestAuthenticateClassifiesFailures(t *testing.T) {
+	home := testutil.TempHome(t)
+	root := gokeepasslib.Group{Name: "root"}
+	passwordDB := filepath.Join(home, "vault.kdbx")
+	writeTestDatabase(t, passwordDB, testVaultPassword, "", root)
+	keyPath := filepath.Join(home, "vault.key")
+	writeTestKeyFile(t, keyPath, 1)
+	wrongKey := filepath.Join(home, "wrong.key")
+	writeTestKeyFile(t, wrongKey, 2)
+	keyedDB := filepath.Join(home, "keyed.kdbx")
+	writeTestDatabase(t, keyedDB, testVaultPassword, keyPath, root)
+	notDB := filepath.Join(home, "notes.txt")
+	require.NoError(t, os.WriteFile(notDB, []byte("not a database"), 0o600))
+	emptyDB := filepath.Join(home, "empty.kdbx")
+	require.NoError(t, os.WriteFile(emptyDB, nil, 0o600))
+	truncatedDB := filepath.Join(home, "truncated.kdbx")
+	data := readTestFile(t, passwordDB)
+	require.NoError(t, os.WriteFile(truncatedDB, data[:len(data)/2], 0o600))
+	missing := filepath.Join(home, "missing")
+
+	for _, scenario := range []struct {
+		name, db, key, password string
+		want                    error
+		file                    AuthFile
+	}{
+		{"wrong password", passwordDB, "", "wrong", ErrInvalidCredentials, 0},
+		{"wrong key file", keyedDB, wrongKey, testVaultPassword, ErrInvalidCredentials, 0},
+		{"key file required", keyedDB, "", testVaultPassword, ErrInvalidCredentials, 0},
+		{"not a database", notDB, "", testVaultPassword, ErrNotDatabase, 0},
+		{"empty file", emptyDB, "", testVaultPassword, ErrNotDatabase, 0},
+		{"truncated database does not panic", truncatedDB, "", testVaultPassword, ErrInvalidCredentials, 0},
+		{"missing database", missing, "", testVaultPassword, os.ErrNotExist, AuthDatabase},
+		{"database is a directory", home, "", testVaultPassword, errVaultNotRegular, AuthDatabase},
+		{"missing key file", keyedDB, missing, testVaultPassword, os.ErrNotExist, AuthKeyFile},
+		{"key file is a directory", keyedDB, home, testVaultPassword, nil, AuthKeyFile},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			err := NewVault().Authenticate(scenario.db, scenario.key, scenario.password, scenario.key != "")
+			require.Error(t, err)
+			if scenario.want != nil {
+				assert.ErrorIs(t, err, scenario.want)
+			}
+			var fileErr *AuthFileError
+			if scenario.file == 0 {
+				assert.False(t, errors.As(err, &fileErr), "unexpected file error: %v", err)
+			} else if assert.ErrorAs(t, err, &fileErr) {
+				assert.Equal(t, scenario.file, fileErr.File)
+			}
+		})
+	}
 }

@@ -18,7 +18,7 @@ func New() *Keepy {
 func (k *Keepy) Run() {
 	p := tea.NewProgram(ui.NewRootModel())
 	if _, err := p.Run(); err != nil {
-		fmt.Printf("Alas, there's been an error: %v", err)
+		fmt.Fprintf(os.Stderr, "keepy: %v\n", err)
 		os.Exit(1)
 	}
 }

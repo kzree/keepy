@@ -55,7 +55,15 @@ func (v *outcomeVault) GetEntriesFlat() []service.VaultEntry {
 }
 func (v *outcomeVault) GetEntryPassword(id gokeepasslib.UUID) (string, error) {
 	v.passwordReads++
-	return v.passwords[id], nil
+	if password, ok := v.passwords[id]; ok {
+		return password, nil
+	}
+	for _, entry := range v.entries {
+		if entry.ID == id {
+			return "", nil
+		}
+	}
+	return "", service.ErrEntryNotFound
 }
 func (v *outcomeVault) AddNewEntry(entry service.NewVaultEntry) error {
 	v.mutations++

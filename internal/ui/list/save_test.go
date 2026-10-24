@@ -2,6 +2,8 @@ package list
 
 import (
 	"errors"
+	"fmt"
+	"io/fs"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -117,4 +119,20 @@ func TestConflictBlocksMutationsButNotSearchInput(t *testing.T) {
 		m, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: char, Text: string(char)}))
 	}
 	assert.Equal(t, "ned", m.search.Value())
+}
+
+func TestMissingDatabaseConflictExplainsRecovery(t *testing.T) {
+	m := NewListModel(locale.En, control.DefaultKeymap())
+	m.SetListTableSize(120, 30)
+	missing := &fs.PathError{Op: "lstat", Path: "/vaults/x.kdbx", Err: fs.ErrNotExist}
+	m, _ = m.Update(SaveResultMsg{Error: &service.SaveError{Kind: service.SaveConflict, Err: missing}})
+	assert.Contains(t, m.GlobalNotice(), "database file is missing or was moved")
+	assert.NotContains(t, m.GlobalNotice(), "reload latest database")
+
+	m, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: 'r', Mod: tea.ModCtrl}))
+	m, _ = m.Update(ReloadVaultResultMsg{Error: fmt.Errorf("reload failed: %w", &service.AuthFileError{File: service.AuthDatabase, Err: missing})})
+	assert.Contains(t, m.GlobalNotice(), "database file is missing or was moved", "a failed reload keeps the recovery guidance")
+
+	m, _ = m.Update(SaveResultMsg{Error: &service.SaveError{Kind: service.SaveConflict, Err: errors.New("database changed")}})
+	assert.Contains(t, m.GlobalNotice(), "reload latest database")
 }

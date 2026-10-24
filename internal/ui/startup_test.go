@@ -292,3 +292,16 @@ func TestClipboardTimeoutComesFromConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestCopyReportsEntriesWithoutPasswordOrMissingEntries(t *testing.T) {
+	empty, gone := gokeepasslib.NewUUID(), gokeepasslib.NewUUID()
+	r := rootWithVault(t, &outcomeVault{passwords: map[gokeepasslib.UUID]string{empty: ""}})
+	clip := &fakeClipboard{}
+	r.clipboardReady, r.writeClipboard = true, clip.write
+
+	r, _ = r.handleCopyPasswordRequestMsg(list.CopyPasswordRequestMsg{ID: empty})
+	assert.Contains(t, r.renderBottomBar(118, 28), "this entry has no password")
+	r, _ = r.handleCopyPasswordRequestMsg(list.CopyPasswordRequestMsg{ID: gone})
+	assert.Contains(t, r.renderBottomBar(118, 28), "entry not found")
+	assert.Empty(t, clip.writes)
+}

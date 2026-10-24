@@ -56,7 +56,7 @@ func (r RootModel) handleCopyPasswordRequestMsg(msg list.CopyPasswordRequestMsg)
 	}
 	pwd, err := r.db.GetEntryPassword(msg.ID)
 	if err == nil && pwd == "" {
-		err = errors.New(r.t.Text(key.ErrorPasswordNotFound))
+		err = errors.New(r.t.Text(key.ErrorEntryHasNoPassword))
 	}
 	var changed <-chan struct{}
 	if err == nil {

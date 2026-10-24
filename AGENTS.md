@@ -163,6 +163,13 @@ copy, calls `Close` on the vault, and rebuilds login and list models, discarding
 any draft with a notice. Timer commands are not drained by test helpers; tests
 deliver timer messages explicitly with an injected clock.
 
+`Vault.Authenticate` classifies failures: `ErrNotDatabase` (no KDBX
+signature), `ErrInvalidCredentials` (decode failure, including recovered decoder
+panics on damaged files), and `*AuthFileError` naming the database or key file
+with the OS cause wrapped. Login maps these to localized text; keep causes
+reachable with `%w`. Vault reads return `ErrNotAuthenticated`/`ErrEntryNotFound`
+rather than empty values; compare with `errors.Is`, not message text.
+
 Startup config-load failures require explicit reload before login; never overwrite
 an unreadable or malformed config with fallback credentials. Clipboard startup
 failure disables copying without blocking vault use. Check clipboard readiness

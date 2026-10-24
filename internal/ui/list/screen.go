@@ -4,6 +4,7 @@ package list
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"slices"
 	"strings"
 	"time"
@@ -341,7 +342,13 @@ func (m ListModel) GlobalNotice() string {
 			body = m.t.Text(tk.SaveCommittedNotice) + "\n"
 		}
 		if m.saveConflict {
-			body = fmt.Sprintf(m.t.Text(tk.ReloadConflict), control.Label(m.keys.Reload.Keys()...)) + "\n"
+			conflict := tk.ReloadConflict
+			// A moved or deleted file is reported as a conflict too; reloading only
+			// helps once the file is back at its original path.
+			if errors.Is(m.saveNotice, fs.ErrNotExist) {
+				conflict = tk.ReloadMissingDatabase
+			}
+			body = fmt.Sprintf(m.t.Text(conflict), control.Label(m.keys.Reload.Keys()...)) + "\n"
 		}
 		body += m.saveNotice.Error()
 	}

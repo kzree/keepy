@@ -1,12 +1,15 @@
 package login
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"kzree.com/keepy/internal/control"
+	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
 	tk "kzree.com/keepy/internal/textprovider/key"
 )
@@ -56,10 +59,40 @@ func (m LoginModel) summaryView() string {
 	return m.fit(text, max(0, m.height-lipgloss.Height(m.footerView())-2))
 }
 
+// authErrorText explains an authentication failure. Missing and unreadable
+// files need no technical cause; the summary above already shows their paths.
+func (m LoginModel) authErrorText() string {
+	err := m.authError
+	var fileErr *service.AuthFileError
+	switch {
+	case errors.Is(err, service.ErrInvalidCredentials):
+		return m.t.Text(tk.ErrorAuthCredentials)
+	case errors.Is(err, service.ErrNotDatabase):
+		return m.t.Text(tk.ErrorAuthNotDatabase)
+	case errors.As(err, &fileErr) && fileErr.File == service.AuthKeyFile:
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			return m.t.Text(tk.ErrorAuthKeyFileMissing)
+		case errors.Is(err, fs.ErrPermission):
+			return m.t.Text(tk.ErrorAuthKeyFilePermission)
+		}
+		return fmt.Sprintf(m.t.Text(tk.ErrorAuthKeyFile), err)
+	case errors.As(err, &fileErr):
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			return m.t.Text(tk.ErrorAuthDatabaseMissing)
+		case errors.Is(err, fs.ErrPermission):
+			return m.t.Text(tk.ErrorAuthDatabasePermission)
+		}
+		return fmt.Sprintf(m.t.Text(tk.ErrorAuthDatabase), err)
+	}
+	return err.Error()
+}
+
 func (m LoginModel) footerView() string {
 	var parts []string
 	if m.authError != nil {
-		parts = append(parts, style.ErrorText.Render(m.authError.Error()))
+		parts = append(parts, style.ErrorText.Render(m.authErrorText()))
 	}
 	parts = append(parts, strings.Join([]string{
 		control.Hint(m.t.Text(tk.HintDatabase), m.keys.LoginBrowseDatabase.Keys()...),
