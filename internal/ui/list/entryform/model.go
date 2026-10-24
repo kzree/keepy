@@ -10,9 +10,11 @@ import (
 	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
+	"kzree.com/keepy/internal/textprovider"
+	"kzree.com/keepy/internal/textprovider/key"
+	"kzree.com/keepy/internal/textprovider/locale"
+	"kzree.com/keepy/internal/textprovider/namespace"
 )
-
-const savingText = "Saving entry..."
 
 type EntryFormModel struct {
 	form        *huh.Form
@@ -27,16 +29,21 @@ type EntryFormModel struct {
 	width       int
 	height      int
 	requestID   uint64
+	locale      locale.Locale
+	t           *textprovider.TextProvider
 }
 
-func NewEntryFormModel() EntryFormModel {
+func NewEntryFormModel(l locale.Locale) EntryFormModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.BrightRed)
 
 	values := getEmptyFormValues()
-	form, inputs := newEntryForm(values)
+	t := textprovider.New(l, namespace.List)
+	form, inputs := newEntryForm(values, l, t)
 	return EntryFormModel{
+		locale:     l,
+		t:          t,
 		formValues: values,
 		form:       form,
 		inputs:     inputs,
@@ -106,7 +113,7 @@ func (m EntryFormModel) Update(msg tea.Msg) (EntryFormModel, tea.Cmd) {
 
 func (m EntryFormModel) View() string {
 	if m.loading {
-		return m.spinner.View() + savingText
+		return m.spinner.View() + m.t.Text(key.SavingEntry)
 	}
 
 	status := m.statusView()
@@ -131,11 +138,11 @@ func (m EntryFormModel) View() string {
 func (m EntryFormModel) statusView() string {
 	var body string
 	if m.conflict {
-		body = "Your draft is kept for review after reloading the database."
+		body = m.t.Text(key.DraftKeptForReview)
 	} else if m.reviewDraft {
-		body = "Database reloaded. Review your draft against the latest entries before submitting."
+		body = m.t.Text(key.DraftReview)
 	} else if m.submitError != nil {
-		body = "Not saved. Review your draft and submit again to retry."
+		body = m.t.Text(key.DraftNotSaved)
 	}
 	if m.submitError != nil && !m.conflict {
 		if body != "" {
@@ -194,14 +201,14 @@ func (m *EntryFormModel) reset() {
 	m.conflict = false
 	m.reviewDraft = false
 	m.formValues = getEmptyFormValues()
-	m.form, m.inputs = newEntryForm(m.formValues)
+	m.form, m.inputs = newEntryForm(m.formValues, m.locale, m.t)
 	m.resizeForm()
 }
 
 // restartForm preserves draft values but resets completion/focus. A failed save
 // must require a new user submission, never a retry triggered by another message.
 func (m *EntryFormModel) restartForm() tea.Cmd {
-	m.form, m.inputs = newEntryForm(m.formValues)
+	m.form, m.inputs = newEntryForm(m.formValues, m.locale, m.t)
 	m.resizeForm()
 	return m.form.Init()
 }

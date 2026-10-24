@@ -2,9 +2,11 @@ package login
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"charm.land/bubbles/v2/filepicker"
 	tea "charm.land/bubbletea/v2"
@@ -12,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/style"
+	"kzree.com/keepy/internal/textprovider/key"
 )
 
 type pickerTarget uint8
@@ -57,7 +60,7 @@ func (m *LoginModel) newPicker(directory string) {
 	m.picker.ShowPermissions, m.picker.ShowSize = false, false
 	m.picker.Styles.Cursor = lipgloss.NewStyle().Foreground(lipgloss.BrightBlue)
 	m.picker.Styles.Selected = m.picker.Styles.Cursor.Bold(true)
-	m.picker.Styles.EmptyDirectory = lipgloss.NewStyle().SetString("No files found, or directory unavailable. Ctrl+R retries.")
+	m.picker.Styles.EmptyDirectory = lipgloss.NewStyle().SetString(fmt.Sprintf(m.t.Text(key.PickerEmpty), control.Label(control.ReloadVault)))
 	m.picker.SetHeight(max(1, m.height-3))
 }
 
@@ -139,7 +142,7 @@ func (m LoginModel) updatePicker(msg tea.KeyPressMsg) (LoginModel, tea.Cmd) {
 			return m, nil
 		}
 		if !info.Mode().IsRegular() {
-			m.pickerError = errors.New("select a regular file")
+			m.pickerError = errors.New(m.t.Text(key.ErrorRegularFile))
 			return m, nil
 		}
 		if m.picking == pickerDatabase {
@@ -161,18 +164,24 @@ func (m LoginModel) updatePicker(msg tea.KeyPressMsg) (LoginModel, tea.Cmd) {
 }
 
 func (m LoginModel) pickerView() string {
-	title := "Choose database"
+	title := m.t.Text(key.PickerTitleDatabase)
 	if m.picking == pickerKeyFile {
-		title = "Choose key file"
+		title = m.t.Text(key.PickerTitleKeyFile)
 	}
 	body := m.picker.View()
 	if m.pickerLoading {
-		body = "Reading directory..."
+		body = m.t.Text(key.PickerReading)
 	}
 	if m.pickerError != nil {
 		body = style.ErrorText.Render(m.pickerError.Error())
 	}
-	footer := "Esc cancel · Enter select/open · Left parent · Ctrl+R retry · F1 help"
+	footer := strings.Join([]string{
+		control.Hint(m.t.Text(key.HintPickerCancel), control.CloseEntryForm),
+		control.Hint(m.t.Text(key.HintPickerSelect), "enter"),
+		control.Hint(m.t.Text(key.HintPickerParent), "left"),
+		control.Hint(m.t.Text(key.HintPickerRetry), control.ReloadVault),
+		control.Hint(m.t.Text(key.HintHelp), control.ShowHelpAnywhere),
+	}, " · ")
 	if m.width > 0 {
 		footer = ansi.Truncate(footer, m.width, "…")
 		title = ansi.Truncate(title, m.width, "…")

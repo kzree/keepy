@@ -1,6 +1,7 @@
 package common
 
 import (
+	"fmt"
 	"strings"
 
 	"charm.land/bubbles/v2/viewport"
@@ -8,6 +9,10 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"kzree.com/keepy/internal/control"
+	"kzree.com/keepy/internal/textprovider"
+	"kzree.com/keepy/internal/textprovider/key"
+	"kzree.com/keepy/internal/textprovider/locale"
+	"kzree.com/keepy/internal/textprovider/namespace"
 )
 
 // KeymapHelpModel is a read-only presentation: the root retains and continues
@@ -17,12 +22,14 @@ type KeymapHelpModel struct {
 	width, height int
 	context       string
 	busy          bool
+	groups        []control.KeymapGroup
+	t             *textprovider.TextProvider
 }
 
-func NewKeymapHelpModel() KeymapHelpModel {
+func NewKeymapHelpModel(l locale.Locale) KeymapHelpModel {
 	v := viewport.New()
 	v.KeyMap = control.HelpViewportKeyMap()
-	return KeymapHelpModel{viewport: v}
+	return KeymapHelpModel{viewport: v, groups: control.KeymapGroups(l), t: textprovider.New(l, namespace.Help)}
 }
 
 func (m *KeymapHelpModel) SetSize(width, height int) {
@@ -45,14 +52,18 @@ func (m *KeymapHelpModel) SetContext(context string, busy bool) {
 
 func (m *KeymapHelpModel) updateContent() {
 	var body strings.Builder
-	body.WriteString("Current context: " + m.context + "\n")
-	if m.busy {
-		body.WriteString("Vault operation in progress: actions and form input wait; help and resizing remain available.\n")
+	for _, group := range m.groups {
+		if group.ID == m.context {
+			body.WriteString(fmt.Sprintf(m.t.Text(key.HelpCurrentContext), group.Title) + "\n")
+		}
 	}
-	for _, group := range control.KeymapGroups() {
+	if m.busy {
+		body.WriteString(m.t.Text(key.HelpBusy) + "\n")
+	}
+	for _, group := range m.groups {
 		title := group.Title
-		if group.Title == m.context {
-			title += " (current)"
+		if group.ID == m.context {
+			title = fmt.Sprintf(m.t.Text(key.HelpCurrentGroup), title)
 		}
 		body.WriteString("\n" + lipgloss.NewStyle().Foreground(lipgloss.BrightBlue).Bold(true).Render(title) + "\n")
 		for _, binding := range group.Bindings {
@@ -82,11 +93,16 @@ func (m KeymapHelpModel) View() string {
 	if m.width <= 0 || m.height <= 0 {
 		return ""
 	}
-	footer := ansi.Truncate("Esc/?/F1 close · ↑/↓ scroll · PgUp/PgDn · Home/End", m.width, "…")
+	footer := ansi.Truncate(strings.Join([]string{
+		control.Hint(m.t.Text(key.HintClose), "esc", control.ShowHelp, control.ShowHelpAnywhere),
+		control.Hint(m.t.Text(key.HintScroll), "up", "down"),
+		control.Hint(m.t.Text(key.HintPage), "pgup", "pgdown"),
+		control.Hint(m.t.Text(key.HintFirstLast), "home", "end"),
+	}, " · "), m.width, "…")
 	if m.height == 1 {
 		return footer
 	}
-	lines := []string{ansi.Truncate("Key bindings", m.width, "…")}
+	lines := []string{ansi.Truncate(m.t.Text(key.HelpTitle), m.width, "…")}
 	if m.height > 2 {
 		lines = append(lines, m.viewport.View())
 	}

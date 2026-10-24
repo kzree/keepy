@@ -69,5 +69,5 @@ func (m ConfirmPromptModel) Update(msg tea.Msg) (ConfirmPromptModel, tea.Cmd) {
 }
 
 func (m ConfirmPromptModel) View() string {
-	return fmt.Sprintf("%s (y/n)", m.msg)
+	return fmt.Sprintf("%s (%s/%s)", m.msg, control.Confirm, control.Cancel)
 }

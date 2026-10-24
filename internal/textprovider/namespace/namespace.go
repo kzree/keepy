@@ -4,6 +4,8 @@ package namespace
 type Namespace string
 
 const (
-	Login Namespace = "login"
-	List  Namespace = "list"
+	Application Namespace = "application"
+	Login       Namespace = "login"
+	List        Namespace = "list"
+	Help        Namespace = "help"
 )

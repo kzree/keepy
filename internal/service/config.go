@@ -31,7 +31,7 @@ type Config struct {
 func createDefaultConfig() (*Config, error) {
 	cfg := Config{
 		Preferences: Preferences{
-			Locale: "En",
+			Locale: "en",
 		},
 		Credentials: Credentials{
 			DBPath:      "",

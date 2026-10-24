@@ -1,9 +1,13 @@
 package ui
 
 import (
+	"fmt"
+
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/style"
+	"kzree.com/keepy/internal/textprovider/key"
 )
 
 func (r *RootModel) renderCurrentView(contentWidth, contentHeight int) string {
@@ -13,7 +17,7 @@ func (r *RootModel) renderCurrentView(contentWidth, contentHeight int) string {
 	switch r.activeView {
 	case screenLogin:
 		if r.configLoadError != nil {
-			return "Configuration unavailable\n\nCorrect the configuration file or its access permissions.\nPress Ctrl+R to retry loading it, or Ctrl+C to quit.\nThe existing file will not be overwritten."
+			return fmt.Sprintf(r.t.Text(key.ConfigUnavailable), control.Label(control.ReloadVault), control.Label(control.QuitApplication))
 		}
 		return r.login.View()
 	case screenList:

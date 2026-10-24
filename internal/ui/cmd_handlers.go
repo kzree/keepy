@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"kzree.com/keepy/internal/service"
+	"kzree.com/keepy/internal/textprovider/key"
 	"kzree.com/keepy/internal/ui/list"
 	"kzree.com/keepy/internal/ui/list/entryform"
 	"kzree.com/keepy/internal/ui/login"
@@ -47,7 +48,7 @@ func (r RootModel) handleCopyPasswordRequestMsg(msg list.CopyPasswordRequestMsg)
 	}
 	if !r.clipboardReady {
 		if r.clipboardError == nil {
-			r.copyError = errors.New("clipboard is not ready")
+			r.copyError = errors.New(r.t.Text(key.ErrorClipboardNotReady))
 		}
 		r.updateApplicationNotice()
 		r.resizeViews()
@@ -55,10 +56,10 @@ func (r RootModel) handleCopyPasswordRequestMsg(msg list.CopyPasswordRequestMsg)
 	}
 	pwd, err := r.db.GetEntryPassword(msg.ID)
 	if err == nil && pwd == "" {
-		err = errors.New("password not found for entry")
+		err = errors.New(r.t.Text(key.ErrorPasswordNotFound))
 	}
 	if err == nil && !r.writeClipboard([]byte(pwd)) {
-		err = errors.New("failed to write password to clipboard")
+		err = errors.New(r.t.Text(key.ErrorClipboardWrite))
 	}
 	r.copyError = err
 	r.updateApplicationNotice()
@@ -123,12 +124,13 @@ func (r RootModel) handleReloadVault(msg list.ReloadVaultRequestMsg) (RootModel,
 	if !r.canStartVaultOperation() || !r.list.AcceptsReload(msg.RequestID) {
 		return r, nil
 	}
+	reloadFailed := r.t.Text(key.ErrorReloadFailed)
 	return r.startVaultOperation(operationReload, msg.RequestID, func(vault vaultSession) vaultOperationResult {
 		result := vaultOperationResult{err: vault.ReAuthenticate()}
 		if result.err == nil {
 			result.entries = vault.GetEntriesFlat()
 		} else {
-			result.err = fmt.Errorf("reload failed: %w", result.err)
+			result.err = fmt.Errorf("%s: %w", reloadFailed, result.err)
 		}
 		return result
 	})

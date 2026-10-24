@@ -87,13 +87,13 @@ func TestLoadConfigCreatesDefaultConfigWhenConfigIsMissing(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
-	assert.Equal(t, "En", cfg.Preferences.Locale)
+	assert.Equal(t, "en", cfg.Preferences.Locale)
 	assert.Empty(t, cfg.Credentials.DBPath)
 	assert.Empty(t, cfg.Credentials.KeyFilePath)
 
 	raw, err := os.ReadFile(configPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(raw), `locale = 'En'`)
+	assert.Contains(t, string(raw), `locale = 'en'`)
 
 	loaded, err := LoadConfig()
 	require.NoError(t, err)

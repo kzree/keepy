@@ -100,7 +100,7 @@ func TestDuplicateConfirmationAndQueuedRequestsCannotRepeatDelete(t *testing.T) 
 	sendRoot(t, &r, msg)
 	sendRoot(t, &r, msg)
 	assert.Equal(t, 1, vault.mutations)
-	assert.Contains(t, r.View().Content, "ctrl+r")
+	assert.Contains(t, r.View().Content, "Ctrl+R")
 }
 
 func TestSaveNoticesFitTerminalHeightWithPopulatedList(t *testing.T) {
@@ -114,7 +114,7 @@ func TestSaveNoticesFitTerminalHeightWithPopulatedList(t *testing.T) {
 		submitThroughUI(t, &r, "delete")
 		assert.LessOrEqual(t, lipgloss.Height(r.View().Content), 24)
 		if kind == service.SaveConflict {
-			assert.Contains(t, r.View().Content, "ctrl+r")
+			assert.Contains(t, r.View().Content, "Ctrl+R")
 		} else {
 			assert.Contains(t, r.View().Content, "Do not repeat")
 		}

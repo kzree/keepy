@@ -4,29 +4,28 @@ package textprovider
 import (
 	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/textprovider/namespace"
-	"kzree.com/keepy/internal/util"
 )
 
 type TextProvider struct {
-	values map[string]string
+	values   map[string]string
+	fallback map[string]string
 }
 
+// New resolves l, so empty or unsupported locales use English.
 func New(l locale.Locale, ns namespace.Namespace) *TextProvider {
 	return &TextProvider{
-		values: getNamespacedValues(l, ns),
+		values:   locale.Catalogs[locale.Resolve(l)][ns],
+		fallback: locale.Catalogs[locale.En][ns],
 	}
 }
 
+// Text falls back per key to English, then to the raw key.
 func (t TextProvider) Text(key string) string {
-	value := t.values[key]
-	return util.Ternary(value == "", key, value)
-}
-
-func getNamespacedValues(l locale.Locale, ns namespace.Namespace) map[string]string {
-	switch l {
-	case "en":
-		return locale.EnMap[ns]
+	if value := t.values[key]; value != "" {
+		return value
 	}
-
-	return make(map[string]string)
+	if value := t.fallback[key]; value != "" {
+		return value
+	}
+	return key
 }

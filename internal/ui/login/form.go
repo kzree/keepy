@@ -4,10 +4,10 @@ import (
 	"errors"
 
 	"charm.land/huh/v2"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/textprovider"
 	"kzree.com/keepy/internal/textprovider/key"
 	"kzree.com/keepy/internal/textprovider/locale"
-	"kzree.com/keepy/internal/textprovider/namespace"
 	"kzree.com/keepy/internal/util"
 )
 
@@ -18,19 +18,16 @@ type loginFormValues struct {
 	useKeyFile  bool
 }
 
-func newShortLoginForm(v *loginFormValues) *huh.Form {
-	t := textprovider.New(locale.En, namespace.Login)
-
+func newShortLoginForm(v *loginFormValues, l locale.Locale, t *textprovider.TextProvider) *huh.Form {
 	return huh.NewForm(
 		huh.NewGroup(
 			passwordInput(v, t),
 		),
-	).WithTheme(util.GetFormTheme())
+	).WithTheme(util.GetFormTheme()).WithKeyMap(control.FormKeyMap(l))
 }
 
-func newLoginForm(v *loginFormValues) *huh.Form {
-	t := textprovider.New(locale.En, namespace.Login)
-
+func newLoginForm(v *loginFormValues, l locale.Locale, t *textprovider.TextProvider) *huh.Form {
+	requiredPath := requiredPath(t)
 	fields := []huh.Field{passwordInput(v, t), huh.NewInput().
 		Title(t.Text(key.LabelDBPath)).
 		Key(dbPathKey).
@@ -46,7 +43,7 @@ func newLoginForm(v *loginFormValues) *huh.Form {
 			Inline(true).
 			Value(&v.keyFilePath).Validate(requiredPath))
 	}
-	return huh.NewForm(huh.NewGroup(fields...)).WithTheme(util.GetFormTheme())
+	return huh.NewForm(huh.NewGroup(fields...)).WithTheme(util.GetFormTheme()).WithKeyMap(control.FormKeyMap(l))
 }
 
 func passwordInput(v *loginFormValues, t *textprovider.TextProvider) *huh.Input {
@@ -54,9 +51,11 @@ func passwordInput(v *loginFormValues, t *textprovider.TextProvider) *huh.Input 
 		Prompt(": ").Inline(true).Value(&v.password).EchoMode(huh.EchoModePassword)
 }
 
-func requiredPath(path string) error {
-	if path == "" {
-		return errors.New("select a file or enter its path")
+func requiredPath(t *textprovider.TextProvider) func(string) error {
+	return func(path string) error {
+		if path == "" {
+			return errors.New(t.Text(key.ErrorPathRequired))
+		}
+		return nil
 	}
-	return nil
 }

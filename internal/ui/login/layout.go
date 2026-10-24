@@ -1,19 +1,22 @@
 package login
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/style"
+	"kzree.com/keepy/internal/textprovider/key"
 )
 
 func (m *LoginModel) setForm() {
 	m.submitIntent = false
 	if m.showPathFields {
-		m.form = newLoginForm(m.formValues)
+		m.form = newLoginForm(m.formValues, m.locale, m.t)
 	} else {
-		m.form = newShortLoginForm(m.formValues)
+		m.form = newShortLoginForm(m.formValues, m.locale, m.t)
 	}
 	m.resizeForm()
 }
@@ -39,17 +42,17 @@ func (m *LoginModel) SetSize(width, height int) {
 func (m LoginModel) summaryView() string {
 	database := m.formValues.dbPath
 	if database == "" {
-		database = "(not selected)"
+		database = m.t.Text(key.DatabaseNotSelected)
 	}
-	key := "Disabled (password only; F4 enables a key file)"
+	keyFile := fmt.Sprintf(m.t.Text(key.KeyFileDisabled), control.Label(control.LoginToggleKeyFile))
 	if m.formValues.useKeyFile {
 		if m.formValues.keyFilePath == "" {
-			key = "Enabled — select a key file with F3 or enter its path"
+			keyFile = fmt.Sprintf(m.t.Text(key.KeyFileEnabledNoPath), control.Label(control.LoginBrowseKeyFile))
 		} else {
-			key = "Enabled — " + m.formValues.keyFilePath
+			keyFile = fmt.Sprintf(m.t.Text(key.KeyFileEnabled), m.formValues.keyFilePath)
 		}
 	}
-	text := "Database: " + database + "\nKey file: " + key
+	text := fmt.Sprintf(m.t.Text(key.SummaryDatabase), database) + "\n" + fmt.Sprintf(m.t.Text(key.SummaryKeyFile), keyFile)
 	return m.fit(text, max(0, m.height-lipgloss.Height(m.footerView())-2))
 }
 
@@ -58,7 +61,13 @@ func (m LoginModel) footerView() string {
 	if m.authError != nil {
 		parts = append(parts, style.ErrorText.Render(m.authError.Error()))
 	}
-	parts = append(parts, "F2: database · F3: key file · F4: enable/disable key file · Ctrl+T: manual paths · F1: help")
+	parts = append(parts, strings.Join([]string{
+		control.Hint(m.t.Text(key.HintDatabase), control.LoginBrowseDatabase),
+		control.Hint(m.t.Text(key.HintKeyFile), control.LoginBrowseKeyFile),
+		control.Hint(m.t.Text(key.HintToggleKeyFile), control.LoginToggleKeyFile),
+		control.Hint(m.t.Text(key.HintManualPaths), control.LoginToggle),
+		control.Hint(m.t.Text(key.HintHelp), control.ShowHelpAnywhere),
+	}, " · "))
 	budget := 0
 	if m.height > 0 {
 		budget = min(3, m.height/4)
@@ -116,7 +125,7 @@ func (m LoginModel) loginView() string {
 }
 
 func (m LoginModel) loadingView() string {
-	body := m.spinner.View() + authenticationText
+	body := m.spinner.View() + m.t.Text(key.Authenticating)
 	if summary := m.summaryView(); summary != "" {
 		return summary + "\n" + body
 	}

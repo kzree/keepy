@@ -9,9 +9,10 @@ import (
 	"charm.land/lipgloss/v2"
 	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
+	"kzree.com/keepy/internal/textprovider"
+	"kzree.com/keepy/internal/textprovider/locale"
+	"kzree.com/keepy/internal/textprovider/namespace"
 )
-
-const authenticationText = "Authenticating..."
 
 const (
 	dbPathKey      = "dbPath"
@@ -35,9 +36,11 @@ type LoginModel struct {
 	pickerRequest  uint64
 	pickerLoading  bool
 	pickerError    error
+	locale         locale.Locale
+	t              *textprovider.TextProvider
 }
 
-func NewLoginModel(cfg *service.Config) LoginModel {
+func NewLoginModel(cfg *service.Config, l locale.Locale) LoginModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.BrightRed)
@@ -62,6 +65,8 @@ func NewLoginModel(cfg *service.Config) LoginModel {
 		loading:        false,
 		showPathFields: showPathFields,
 		formValues:     &formValues,
+		locale:         l,
+		t:              textprovider.New(l, namespace.Login),
 	}
 	m.setForm()
 	return m

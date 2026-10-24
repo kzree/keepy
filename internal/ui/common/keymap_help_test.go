@@ -7,10 +7,11 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/assert"
 	"kzree.com/keepy/internal/control"
+	"kzree.com/keepy/internal/textprovider/locale"
 )
 
 func TestKeymapHelpScrollsWrapsAndKeepsCloseHintsVisible(t *testing.T) {
-	m := NewKeymapHelpModel()
+	m := NewKeymapHelpModel(locale.En)
 	m.SetContext(control.ListKeys, false)
 	m.SetSize(70, 12)
 	top := m.View()

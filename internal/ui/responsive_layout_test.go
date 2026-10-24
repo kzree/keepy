@@ -82,10 +82,10 @@ func TestResponsiveRecoveryAndHelpRemainWithinRootBudget(t *testing.T) {
 		sendRoot(t, &r, tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 		assert.LessOrEqual(t, lipgloss.Width(r.View().Content), size[0])
 		assert.LessOrEqual(t, lipgloss.Height(r.View().Content), size[1])
-		assert.Contains(t, r.View().Content, "ctrl+r")
+		assert.Contains(t, r.View().Content, "Ctrl+R")
 		sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: tea.KeyF1}))
 		assert.LessOrEqual(t, lipgloss.Height(r.View().Content), size[1])
-		assert.Contains(t, r.View().Content, "ctrl+r")
+		assert.Contains(t, r.View().Content, "Ctrl+R")
 		sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}))
 		assert.True(t, r.list.IsTextInputActive())
 	}

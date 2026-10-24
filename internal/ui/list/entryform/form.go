@@ -3,10 +3,10 @@ package entryform
 
 import (
 	"charm.land/huh/v2"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/textprovider"
 	"kzree.com/keepy/internal/textprovider/key"
 	"kzree.com/keepy/internal/textprovider/locale"
-	"kzree.com/keepy/internal/textprovider/namespace"
 	"kzree.com/keepy/internal/util"
 )
 
@@ -33,8 +33,7 @@ func getEmptyFormValues() *entryFormValues {
 	}
 }
 
-func newEntryForm(values *entryFormValues) (*huh.Form, []*huh.Input) {
-	t := textprovider.New(locale.En, namespace.List)
+func newEntryForm(values *entryFormValues, l locale.Locale, t *textprovider.TextProvider) (*huh.Form, []*huh.Input) {
 	inputs := []*huh.Input{
 		huh.NewInput().
 			Title(t.Text(key.LabelTitle)).
@@ -65,5 +64,5 @@ func newEntryForm(values *entryFormValues) (*huh.Form, []*huh.Input) {
 	for i, input := range inputs {
 		fields[i] = input
 	}
-	return huh.NewForm(huh.NewGroup(fields...)).WithTheme(util.GetFormTheme()), inputs
+	return huh.NewForm(huh.NewGroup(fields...)).WithTheme(util.GetFormTheme()).WithKeyMap(control.FormKeyMap(l)), inputs
 }

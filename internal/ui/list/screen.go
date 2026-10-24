@@ -3,6 +3,7 @@ package list
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/textprovider"
+	"kzree.com/keepy/internal/textprovider/key"
 	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/textprovider/namespace"
 	"kzree.com/keepy/internal/ui/common"
@@ -59,15 +61,15 @@ type ListModel struct {
 	confirm   common.ConfirmPromptModel
 }
 
-func NewListModel() ListModel {
-	t := textprovider.New(locale.En, namespace.List)
+func NewListModel(l locale.Locale) ListModel {
+	t := textprovider.New(l, namespace.List)
 	return ListModel{
 		showSearch:   false,
 		showSidePane: false,
 		activePane:   listPane,
 		table:        createEntryTable(t),
 		search:       search.NewSearchModel(t),
-		entryForm:    entryform.NewEntryFormModel(),
+		entryForm:    entryform.NewEntryFormModel(l),
 		confirm:      common.NewConfirmPrompt(),
 		t:            t,
 	}
@@ -327,21 +329,21 @@ func clearCopyFlashCmd(id int) tea.Cmd {
 // failures remain in the entry form; views never append global status themselves.
 func (m ListModel) GlobalNotice() string {
 	if m.deleting {
-		return "Deleting entry..."
+		return m.t.Text(key.DeletingEntry)
 	}
 	var body string
 	if m.saveNotice != nil && (m.saveConflict || !(m.showSidePane && m.activePane == createPane)) {
 		var outcome *service.SaveError
 		if errors.As(m.saveNotice, &outcome) && outcome.Committed() {
-			body = "Save committed. Do not repeat the operation; durability could not be confirmed.\n"
+			body = m.t.Text(key.SaveCommittedNotice) + "\n"
 		}
 		if m.saveConflict {
-			body = "ctrl+r: reload latest database before trying another mutation.\n"
+			body = fmt.Sprintf(m.t.Text(key.ReloadConflict), control.Label(control.ReloadVault)) + "\n"
 		}
 		body += m.saveNotice.Error()
 	}
 	if m.reloading {
-		body = "Reloading database..."
+		body = m.t.Text(key.ReloadingDatabase)
 	}
 	return body
 }

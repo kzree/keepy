@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 	"kzree.com/keepy/internal/service"
+	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/ui/list"
 	"kzree.com/keepy/internal/ui/login"
 )
@@ -45,7 +46,7 @@ func TestRootBottomBarRemainsGlobalAcrossScreensAndNarrowResizes(t *testing.T) {
 	for _, view := range []screen{screenList, screenLogin} {
 		r.activeView = view
 		if view == screenLogin {
-			r.login = login.NewLoginModel(&service.Config{})
+			r.login = login.NewLoginModel(&service.Config{}, locale.En)
 			drainRoot(t, &r, r.login.Init())
 		}
 		for _, size := range [][2]int{{120, 30}, {60, 18}, {20, 6}} {
@@ -78,7 +79,7 @@ func TestFailedReloadAppearsGloballyWithoutLosingDraft(t *testing.T) {
 	sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: 'r', Mod: tea.ModCtrl}))
 	w, h := r.getContentSize()
 	assert.Contains(t, r.View().Content, "reloadfailure")
-	assert.Contains(t, r.View().Content, "ctrl+r")
+	assert.Contains(t, r.View().Content, "Ctrl+R")
 	assert.Contains(t, r.View().Content, "settingsfailure")
 	assert.NotContains(t, r.list.View(w, h), "reloadfailure")
 	assert.Contains(t, r.list.View(w, h), "Committed")
@@ -93,7 +94,7 @@ func TestConflictAndReloadStatusUseBottomBarWhileDraftStaysInForm(t *testing.T) 
 	r.bottomBar.SetApplicationNotice("settingsfailure")
 	submitThroughUI(t, &r, "add")
 	w, h := r.getContentSize()
-	assert.Contains(t, r.View().Content, "ctrl+r")
+	assert.Contains(t, r.View().Content, "Ctrl+R")
 	assert.Contains(t, r.View().Content, "external-change-cause")
 	assert.NotContains(t, r.list.View(w, h), "external-change-cause")
 	assert.Contains(t, r.list.View(w, h), "Committed", "draft stays in the form")

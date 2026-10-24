@@ -9,10 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tobischo/gokeepasslib/v3"
 	"kzree.com/keepy/internal/service"
+	"kzree.com/keepy/internal/textprovider/locale"
 )
 
 func TestRefreshPreservesQueryAndSelectedEntry(t *testing.T) {
-	m := NewListModel()
+	m := NewListModel(locale.En)
 	a := service.VaultEntry{ID: gokeepasslib.NewUUID(), Title: "Match A"}
 	b := service.VaultEntry{ID: gokeepasslib.NewUUID(), Title: "Match B"}
 	other := service.VaultEntry{ID: gokeepasslib.NewUUID(), Title: "Other"}
@@ -35,7 +36,7 @@ func TestRefreshPreservesQueryAndSelectedEntry(t *testing.T) {
 func TestRestoredSelectionIsVisibleAfterClearingAndReordering(t *testing.T) {
 	for _, action := range []string{"clear filter", "reorder refresh"} {
 		t.Run(action, func(t *testing.T) {
-			m := NewListModel()
+			m := NewListModel(locale.En)
 			m.SetListTableSize(100, 6)
 			entries := make([]service.VaultEntry, 20)
 			for i := range entries {
@@ -62,7 +63,7 @@ func TestRestoredSelectionIsVisibleAfterClearingAndReordering(t *testing.T) {
 }
 
 func TestEditedSelectionFallsBackWithinMatchingResults(t *testing.T) {
-	m := NewListModel()
+	m := NewListModel(locale.En)
 	entries := []service.VaultEntry{
 		{ID: gokeepasslib.NewUUID(), Title: "Match A"},
 		{ID: gokeepasslib.NewUUID(), Title: "Match B"},
@@ -81,7 +82,7 @@ func TestEditedSelectionFallsBackWithinMatchingResults(t *testing.T) {
 
 func TestRefreshFallsBackToNearbyRow(t *testing.T) {
 	for _, removedRow := range []int{0, 1, 2} {
-		m := NewListModel()
+		m := NewListModel(locale.En)
 		entries := []service.VaultEntry{
 			{ID: gokeepasslib.NewUUID(), Title: "Match A"},
 			{ID: gokeepasslib.NewUUID(), Title: "Match B"},
@@ -100,7 +101,7 @@ func TestRefreshFallsBackToNearbyRow(t *testing.T) {
 }
 
 func TestFilteringAndClearingPreserveSelectionAndHandleNoMatches(t *testing.T) {
-	m := NewListModel()
+	m := NewListModel(locale.En)
 	a := service.VaultEntry{ID: gokeepasslib.NewUUID(), Title: "Other"}
 	b := service.VaultEntry{ID: gokeepasslib.NewUUID(), Title: "Match"}
 	m.SetEntries([]service.VaultEntry{a, b})

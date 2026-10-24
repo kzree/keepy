@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
+	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/ui/login"
 	"kzree.com/keepy/internal/util/testutil"
 )
@@ -23,7 +24,7 @@ func TestLoginPickerHelpCancelAndAuthenticationPreserveState(t *testing.T) {
 	r := rootWithVault(t, fake)
 	r.cfg = &service.Config{Preferences: service.Preferences{Locale: "saved-locale"}, Credentials: service.Credentials{DBPath: database}}
 	r.activeView = screenLogin
-	r.login = login.NewLoginModel(r.cfg)
+	r.login = login.NewLoginModel(r.cfg, locale.En)
 	drainRoot(t, &r, r.login.Init())
 	sendRoot(t, &r, tea.WindowSizeMsg{Width: 100, Height: 28})
 	for _, char := range "secret?" {
@@ -38,7 +39,7 @@ func TestLoginPickerHelpCancelAndAuthenticationPreserveState(t *testing.T) {
 	assert.Equal(t, control.FilePickerKeys, r.keymapContext())
 	sendRoot(t, &r, tea.WindowSizeMsg{Width: 40, Height: 12})
 	assert.LessOrEqual(t, lipgloss.Height(r.View().Content), 12)
-	assert.Contains(t, r.View().Content, "Esc cancel")
+	assert.Contains(t, r.View().Content, "Esc: cancel")
 	sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}))
 	assert.Equal(t, control.LoginKeys, r.keymapContext())
 	assert.Zero(t, fake.authCalls)

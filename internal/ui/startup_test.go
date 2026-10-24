@@ -189,5 +189,5 @@ func TestConfigurationRecoveryKeepsClipboardFailure(t *testing.T) {
 	assert.Contains(t, r.renderBottomBar(118, 28), "Clipboard unavailable")
 	assert.NotContains(t, r.renderBottomBar(118, 28), "configfailure")
 	assert.NotNil(t, r.cfg)
-	assert.Equal(t, service.Preferences{Locale: "En"}, r.cfg.Preferences)
+	assert.Equal(t, service.Preferences{Locale: "en"}, r.cfg.Preferences)
 }

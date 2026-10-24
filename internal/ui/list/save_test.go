@@ -9,12 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tobischo/gokeepasslib/v3"
 	"kzree.com/keepy/internal/service"
+	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/ui/common"
 	"kzree.com/keepy/internal/ui/list/entryform"
 )
 
 func TestConflictDraftSurvivesFailedReloadAndRecovery(t *testing.T) {
-	m := NewListModel()
+	m := NewListModel(locale.En)
 	m.SetListTableSize(120, 30)
 	id := gokeepasslib.NewUUID()
 	entry := service.VaultEntry{ID: id, Title: "My draft"}
@@ -39,7 +40,7 @@ func TestConflictDraftSurvivesFailedReloadAndRecovery(t *testing.T) {
 }
 
 func TestDelayedEditCannotReplaceNewDraftOrConflictRecovery(t *testing.T) {
-	m := NewListModel()
+	m := NewListModel(locale.En)
 	m.SetListTableSize(120, 30)
 	entry := service.VaultEntry{ID: gokeepasslib.NewUUID(), Title: "Old edit"}
 	m.SetEntries([]service.VaultEntry{entry})
@@ -54,11 +55,11 @@ func TestDelayedEditCannotReplaceNewDraftOrConflictRecovery(t *testing.T) {
 	m, cmd = m.Update(OpenEditEntryMsg{RequestID: requestID, Entry: entry})
 	assert.Nil(t, cmd)
 	assert.True(t, m.saveConflict)
-	assert.Contains(t, m.GlobalNotice(), "ctrl+r")
+	assert.Contains(t, m.GlobalNotice(), "Ctrl+R")
 }
 
 func TestDeleteConflictRequiresReloadBeforeAnotherMutation(t *testing.T) {
-	m := NewListModel()
+	m := NewListModel(locale.En)
 	m, _ = m.Update(SaveResultMsg{Error: &service.SaveError{Kind: service.SaveConflict, Err: errors.New("external change")}})
 	for _, key := range []rune{'n', 'e', 'd'} {
 		var cmd tea.Cmd
@@ -74,14 +75,14 @@ func TestDeleteConflictRequiresReloadBeforeAnotherMutation(t *testing.T) {
 }
 
 func TestDeleteOnEmptyListDoesNotOpenPrompt(t *testing.T) {
-	m := NewListModel()
+	m := NewListModel(locale.En)
 	m, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: 'd'}))
 	assert.Nil(t, cmd)
 	assert.False(t, m.showDeletePrompt)
 }
 
 func TestStaleConfirmationCannotConsumeNewPrompt(t *testing.T) {
-	m := NewListModel()
+	m := NewListModel(locale.En)
 	m.SetEntries([]service.VaultEntry{{ID: gokeepasslib.NewUUID(), Title: "Entry"}})
 	m, oldOpen := m.Update(tea.KeyPressMsg(tea.Key{Code: 'd'}))
 	old := oldOpen().(common.OpenConfirmMsg)

@@ -125,6 +125,14 @@ in the authentication request only when explicitly enabled. Scope directory-read
 completions to their picker session/request so stale results cannot replace a
 newer listing or reopen a cancelled picker.
 
+User-facing UI text comes from `internal/textprovider` catalogs, not string
+literals. Root resolves the saved locale preference once with `locale.Resolve`
+and passes the effective locale to screens and components; unsupported or empty
+preferences use English without rewriting the saved value. Missing translations
+fall back per key to English. Derive shortcut labels from binding constants with
+`control.Label`/`control.Hint`, and keep keymap context IDs stable and separate
+from translated group headings. Technical error causes keep their original text.
+
 Startup config-load failures require explicit reload before login; never overwrite
 an unreadable or malformed config with fallback credentials. Clipboard startup
 failure disables copying without blocking vault use. Check clipboard readiness
