@@ -12,7 +12,7 @@ work.
 Keepy is a KeePass database TUI written in Go using Bubble Tea, Bubbles, Huh, and
 Lip Gloss.
 
-- `cmd/app/`: application entry point.
+- `cmd/keepy/`: application entry point.
 - `internal/keepy/`: application startup.
 - `internal/service/`: vault operations, configuration, and password generation.
 - `internal/ui/`: root model, screens, components, and message handling.

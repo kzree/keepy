@@ -2,10 +2,10 @@
 # DEVELOPMENT
 # ==================================================================================== #
 
-## run/app: run the cmd/app application
-.PHONY: run/app
-run/app:
-	@go run ./cmd/app
+## run/keepy: run the cmd/keepy application
+.PHONY: run/keepy
+run/keepy:
+	@go run ./cmd/keepy
 
 ## test: run all tests
 .PHONY: test
@@ -46,5 +46,5 @@ build:
 		if [ "$$GOOS" = "windows" ]; then EXT=".exe"; fi; \
 		OUT="$(BUILD_DIR)/$(APP_NAME)-$$GOOS-$$GOARCH$$EXT"; \
 		echo "Building $$OUT..."; \
-		GOOS=$$GOOS GOARCH=$$GOARCH go build -o $$OUT ./cmd/app || exit 1; \
+		GOOS=$$GOOS GOARCH=$$GOARCH go build -o $$OUT ./cmd/keepy || exit 1; \
 	done
