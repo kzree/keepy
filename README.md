@@ -4,7 +4,8 @@ Keepass database TUI powered by Go and [Bubble Tea](https://github.com/charmbrac
 
 ## Keymap
 
-Default keymap. Planned to be configurable in the config
+Default keymap. Application actions can be rebound in the config; see
+[Custom keybindings](#custom-keybindings).
 
 ### Global
 
@@ -118,6 +119,35 @@ and copying is disabled. Restore clipboard access and restart Keepy to enable
 copying; the clipboard library caches initialization failures for the process.
 Ordinary clipboard-write failures can be retried explicitly with `C`.
 
+### Custom keybindings
+
+Override actions in `~/.config/keepy/config.toml` with a `[keybindings]` table.
+Each action takes a list of keys; unlisted actions keep their defaults.
+
+```toml
+[keybindings]
+copy_entry = ["c", "ctrl+y"]
+show_help_anywhere = ["f12"]
+```
+
+Actions: `quit`, `quit_alt`, `show_help`, `show_help_anywhere`,
+`login_toggle_paths`, `login_browse_database`, `login_browse_key_file`,
+`login_toggle_key_file`, `copy_entry`, `new_entry`, `edit_entry`,
+`delete_entry`, `search`, `clear_filter`, `generate_password`, `reload`,
+`confirm`, `cancel`.
+
+Keys use Bubble Tea names: modifiers `ctrl`, `alt`, `shift`, `meta`, `hyper`,
+`super` joined with `+` (`ctrl+r`), named keys such as `enter`, `tab`, `space`,
+`up`, `pgdown`, `home`, `f1`–`f24`, or a single character. Write shifted
+characters directly (`"A"`, `"?"`), not as `shift+a`.
+
+Esc, Enter, and table, picker, help, and text-editing navigation keys are fixed.
+Keepy rejects overrides that conflict with them or with another action in the
+same view, and keys that would type text in a text input. If any override is
+invalid, all overrides are ignored, defaults are used, and the bottom bar lists
+the problems; login is not blocked and the file is not rewritten. The help view
+always shows the keys in effect.
+
 ## Todo for v1.0
 
 - [x] Search
@@ -129,7 +159,7 @@ Ordinary clipboard-write failures can be retried explicitly with `C`.
   - [x] File picker for paths
 - [ ] Key hints
   - [x] Scrollable keymap help (`?` / `F1`)
-  - [ ] Configurable keybinds
+  - [x] Configurable keybinds
 - [x] i18n
 - [ ] Proper error handling
 - [ ] Tests

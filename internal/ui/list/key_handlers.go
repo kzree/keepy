@@ -3,7 +3,7 @@ package list
 import (
 	tea "charm.land/bubbletea/v2"
 	"kzree.com/keepy/internal/service"
-	"kzree.com/keepy/internal/textprovider/key"
+	tk "kzree.com/keepy/internal/textprovider/key"
 	"kzree.com/keepy/internal/ui/common"
 	"kzree.com/keepy/internal/ui/list/search"
 )
@@ -100,7 +100,7 @@ func (m ListModel) handleOpenDeletePrompt() (ListModel, tea.Cmd) {
 		return m, func() tea.Msg {
 			return common.OpenConfirmMsg{
 				RequestID: requestID,
-				Msg:       m.t.Text(key.DeleteConfirmPrompt),
+				Msg:       m.t.Text(tk.DeleteConfirmPrompt),
 				Cmd:       cmd,
 			}
 		}

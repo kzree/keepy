@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tobischo/gokeepasslib/v3"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/ui/list"
@@ -82,7 +83,7 @@ func prepareDelayedOperation(t *testing.T, r *RootModel, operation string) tea.C
 	switch operation {
 	case "login":
 		r.activeView = screenLogin
-		r.login = login.NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: "vault.kdbx"}}, locale.En)
+		r.login = login.NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: "vault.kdbx"}}, locale.En, control.DefaultKeymap())
 		drainRoot(t, r, r.login.Init())
 		return captureVaultCommand(t, r, tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	case "delete":

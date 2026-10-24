@@ -8,7 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/style"
-	"kzree.com/keepy/internal/textprovider/key"
+	tk "kzree.com/keepy/internal/textprovider/key"
 )
 
 func (m *LoginModel) setForm() {
@@ -42,17 +42,17 @@ func (m *LoginModel) SetSize(width, height int) {
 func (m LoginModel) summaryView() string {
 	database := m.formValues.dbPath
 	if database == "" {
-		database = m.t.Text(key.DatabaseNotSelected)
+		database = m.t.Text(tk.DatabaseNotSelected)
 	}
-	keyFile := fmt.Sprintf(m.t.Text(key.KeyFileDisabled), control.Label(control.LoginToggleKeyFile))
+	keyFile := fmt.Sprintf(m.t.Text(tk.KeyFileDisabled), control.Label(m.keys.LoginToggleKeyFile.Keys()...))
 	if m.formValues.useKeyFile {
 		if m.formValues.keyFilePath == "" {
-			keyFile = fmt.Sprintf(m.t.Text(key.KeyFileEnabledNoPath), control.Label(control.LoginBrowseKeyFile))
+			keyFile = fmt.Sprintf(m.t.Text(tk.KeyFileEnabledNoPath), control.Label(m.keys.LoginBrowseKeyFile.Keys()...))
 		} else {
-			keyFile = fmt.Sprintf(m.t.Text(key.KeyFileEnabled), m.formValues.keyFilePath)
+			keyFile = fmt.Sprintf(m.t.Text(tk.KeyFileEnabled), m.formValues.keyFilePath)
 		}
 	}
-	text := fmt.Sprintf(m.t.Text(key.SummaryDatabase), database) + "\n" + fmt.Sprintf(m.t.Text(key.SummaryKeyFile), keyFile)
+	text := fmt.Sprintf(m.t.Text(tk.SummaryDatabase), database) + "\n" + fmt.Sprintf(m.t.Text(tk.SummaryKeyFile), keyFile)
 	return m.fit(text, max(0, m.height-lipgloss.Height(m.footerView())-2))
 }
 
@@ -62,11 +62,11 @@ func (m LoginModel) footerView() string {
 		parts = append(parts, style.ErrorText.Render(m.authError.Error()))
 	}
 	parts = append(parts, strings.Join([]string{
-		control.Hint(m.t.Text(key.HintDatabase), control.LoginBrowseDatabase),
-		control.Hint(m.t.Text(key.HintKeyFile), control.LoginBrowseKeyFile),
-		control.Hint(m.t.Text(key.HintToggleKeyFile), control.LoginToggleKeyFile),
-		control.Hint(m.t.Text(key.HintManualPaths), control.LoginToggle),
-		control.Hint(m.t.Text(key.HintHelp), control.ShowHelpAnywhere),
+		control.Hint(m.t.Text(tk.HintDatabase), m.keys.LoginBrowseDatabase.Keys()...),
+		control.Hint(m.t.Text(tk.HintKeyFile), m.keys.LoginBrowseKeyFile.Keys()...),
+		control.Hint(m.t.Text(tk.HintToggleKeyFile), m.keys.LoginToggleKeyFile.Keys()...),
+		control.Hint(m.t.Text(tk.HintManualPaths), m.keys.LoginTogglePaths.Keys()...),
+		control.Hint(m.t.Text(tk.HintHelp), m.keys.ShowHelpAnywhere.Keys()...),
 	}, " · "))
 	budget := 0
 	if m.height > 0 {
@@ -125,7 +125,7 @@ func (m LoginModel) loginView() string {
 }
 
 func (m LoginModel) loadingView() string {
-	body := m.spinner.View() + m.t.Text(key.Authenticating)
+	body := m.spinner.View() + m.t.Text(tk.Authenticating)
 	if summary := m.summaryView(); summary != "" {
 		return summary + "\n" + body
 	}

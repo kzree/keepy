@@ -4,6 +4,7 @@ package ui
 import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/textprovider"
 	"kzree.com/keepy/internal/textprovider/locale"
@@ -37,8 +38,10 @@ type RootModel struct {
 	helpVisible bool
 	keymapHelp  common.KeymapHelpModel
 
-	locale locale.Locale
-	t      *textprovider.TextProvider
+	locale      locale.Locale
+	t           *textprovider.TextProvider
+	keys        control.Keymap
+	keymapError error
 
 	width  int
 	height int
@@ -46,12 +49,9 @@ type RootModel struct {
 
 func NewRootModel() RootModel {
 	cfg, err := service.LoadConfig()
-	l := configLocale(cfg)
 
 	r := RootModel{
 		activeView:       screenLogin,
-		login:            login.NewLoginModel(cfg, l),
-		list:             list.NewListModel(l),
 		db:               service.NewVault(),
 		cfg:              cfg,
 		configLoadError:  err,
@@ -59,7 +59,7 @@ func NewRootModel() RootModel {
 		initClipboard:    initializeClipboard,
 		writeClipboard:   writeClipboardText,
 	}
-	r.setLocale(l)
+	r.applyConfig(cfg)
 	r.updateApplicationNotice()
 	return r
 }

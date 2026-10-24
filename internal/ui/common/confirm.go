@@ -4,11 +4,13 @@ package common
 import (
 	"fmt"
 
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"kzree.com/keepy/internal/control"
 )
 
 type ConfirmPromptModel struct {
+	keys           control.Keymap
 	confirmCommand tea.Cmd
 	msg            string
 	requestID      uint64
@@ -26,8 +28,8 @@ type CloseConfirmMsg struct {
 	Success   bool
 }
 
-func NewConfirmPrompt() ConfirmPromptModel {
-	return ConfirmPromptModel{}
+func NewConfirmPrompt(keys control.Keymap) ConfirmPromptModel {
+	return ConfirmPromptModel{keys: keys}
 }
 
 func (m ConfirmPromptModel) Init() tea.Cmd {
@@ -39,8 +41,8 @@ func (m ConfirmPromptModel) Update(msg tea.Msg) (ConfirmPromptModel, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
-		switch msg.String() {
-		case control.Confirm:
+		switch {
+		case key.Matches(msg, m.keys.Confirm):
 			if m.confirmCommand != nil {
 				return m, func() tea.Msg {
 					return CloseConfirmMsg{
@@ -50,7 +52,7 @@ func (m ConfirmPromptModel) Update(msg tea.Msg) (ConfirmPromptModel, tea.Cmd) {
 					}
 				}
 			}
-		case control.Cancel:
+		case key.Matches(msg, m.keys.Cancel):
 			return m, func() tea.Msg {
 				return CloseConfirmMsg{
 					RequestID: m.requestID,
@@ -69,5 +71,5 @@ func (m ConfirmPromptModel) Update(msg tea.Msg) (ConfirmPromptModel, tea.Cmd) {
 }
 
 func (m ConfirmPromptModel) View() string {
-	return fmt.Sprintf("%s (%s/%s)", m.msg, control.Confirm, control.Cancel)
+	return fmt.Sprintf("%s (%s/%s)", m.msg, control.Label(m.keys.Confirm.Keys()...), control.Label(m.keys.Cancel.Keys()...))
 }

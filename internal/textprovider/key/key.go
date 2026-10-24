@@ -10,6 +10,7 @@ const (
 	NoticeClipboardUnavailable = "NOTICE_CLIPBOARD_UNAVAILABLE"
 	NoticeConfigSave           = "NOTICE_CONFIG_SAVE"
 	NoticeCopyFailed           = "NOTICE_COPY_FAILED"
+	NoticeKeymapInvalid        = "NOTICE_KEYMAP_INVALID"
 	ErrorClipboardNotReady     = "ERROR_CLIPBOARD_NOT_READY"
 	ErrorPasswordNotFound      = "ERROR_PASSWORD_NOT_FOUND"
 	ErrorClipboardWrite        = "ERROR_CLIPBOARD_WRITE"

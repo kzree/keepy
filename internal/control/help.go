@@ -121,7 +121,7 @@ func HelpViewportKeyMap() viewport.KeyMap {
 // KeymapGroups uses application constants and the actual table/form navigation
 // maps. It describes conditional actions rather than implying every key is
 // enabled in every mode (or while a vault operation is pending).
-func KeymapGroups(l locale.Locale) []KeymapGroup {
+func KeymapGroups(l locale.Locale, keys Keymap) []KeymapGroup {
 	t := textprovider.New(l, namespace.Help)
 	bind := func(text string, keys ...string) key.Binding { return binding(t.Text(text), keys...) }
 	form := huh.NewDefaultKeyMap().Input
@@ -135,29 +135,29 @@ func KeymapGroups(l locale.Locale) []KeymapGroup {
 	picker := LoginPickerKeyMap()
 	return []KeymapGroup{
 		{GlobalKeys, t.Text(tk.GroupGlobal), []key.Binding{
-			bind(tk.BindHelpAnywhere, ShowHelpAnywhere),
-			bind(tk.BindHelp, ShowHelp),
-			bind(tk.BindQuit, QuitApplication),
-			bind(tk.BindQuitAlt, QuitApplicationAlt),
+			bind(tk.BindHelpAnywhere, keys.ShowHelpAnywhere.Keys()...),
+			bind(tk.BindHelp, keys.ShowHelp.Keys()...),
+			bind(tk.BindQuit, keys.Quit.Keys()...),
+			bind(tk.BindQuitAlt, keys.QuitAlt.Keys()...),
 		}},
 		{LoginKeys, t.Text(tk.GroupLogin), append(append([]key.Binding{}, navigation...),
-			bind(tk.BindTogglePaths, LoginToggle),
-			bind(tk.BindBrowseDatabase, LoginBrowseDatabase),
-			bind(tk.BindBrowseKeyFile, LoginBrowseKeyFile),
-			bind(tk.BindToggleKeyFile, LoginToggleKeyFile))},
+			bind(tk.BindTogglePaths, keys.LoginTogglePaths.Keys()...),
+			bind(tk.BindBrowseDatabase, keys.LoginBrowseDatabase.Keys()...),
+			bind(tk.BindBrowseKeyFile, keys.LoginBrowseKeyFile.Keys()...),
+			bind(tk.BindToggleKeyFile, keys.LoginToggleKeyFile.Keys()...))},
 		{FilePickerKeys, t.Text(tk.GroupFilePicker), []key.Binding{
 			bind(tk.BindUp, picker.Up.Keys()...), bind(tk.BindDown, picker.Down.Keys()...),
 			bind(tk.BindPageUp, picker.PageUp.Keys()...), bind(tk.BindPageDown, picker.PageDown.Keys()...),
 			bind(tk.BindFirst, picker.GoToTop.Keys()...), bind(tk.BindLast, picker.GoToLast.Keys()...),
 			bind(tk.BindParentDirectory, picker.Back.Keys()...),
 			bind(tk.BindOpenOrSelect, "enter"), bind(tk.BindOpenDirectory, "l", "right"),
-			bind(tk.BindCancelBrowsing, CloseEntryForm), bind(tk.BindRetryDirectory, ReloadVault),
+			bind(tk.BindCancelBrowsing, CloseEntryForm), bind(tk.BindRetryDirectory, keys.Reload.Keys()...),
 		}},
 		{ListKeys, t.Text(tk.GroupList), []key.Binding{
-			bind(tk.BindCopy, CopyEntry),
-			bind(tk.BindCreate, NewEntry), bind(tk.BindEdit, EditEntry),
-			bind(tk.BindDelete, DeleteEntity),
-			bind(tk.BindSearch, Search), bind(tk.BindClearFilter, ClearFilter),
+			bind(tk.BindCopy, keys.CopyEntry.Keys()...),
+			bind(tk.BindCreate, keys.NewEntry.Keys()...), bind(tk.BindEdit, keys.EditEntry.Keys()...),
+			bind(tk.BindDelete, keys.DeleteEntry.Keys()...),
+			bind(tk.BindSearch, keys.Search.Keys()...), bind(tk.BindClearFilter, keys.ClearFilter.Keys()...),
 			bind(tk.BindUp, tableKeys.LineUp.Keys()...), bind(tk.BindDown, tableKeys.LineDown.Keys()...),
 			bind(tk.BindPageUp, tableKeys.PageUp.Keys()...), bind(tk.BindPageDown, tableKeys.PageDown.Keys()...),
 			bind(tk.BindHalfPageUp, tableKeys.HalfPageUp.Keys()...), bind(tk.BindHalfPageDown, tableKeys.HalfPageDown.Keys()...),
@@ -165,11 +165,11 @@ func KeymapGroups(l locale.Locale) []KeymapGroup {
 		}},
 		{SearchKeys, t.Text(tk.GroupSearch), []key.Binding{bind(tk.BindCloseSearch, "enter", "esc")}},
 		{EntryFormKeys, t.Text(tk.GroupEntryForm), append(append([]key.Binding{}, navigation...),
-			bind(tk.BindGeneratePassword, GeneratePassword), bind(tk.BindCancelDraft, CloseEntryForm))},
-		{ConfirmationKeys, t.Text(tk.GroupConfirmation), []key.Binding{bind(tk.BindConfirmDelete, Confirm), bind(tk.BindCancelDelete, Cancel)}},
-		{RecoveryKeys, t.Text(tk.GroupRecovery), []key.Binding{bind(tk.BindRecovery, ReloadVault)}},
+			bind(tk.BindGeneratePassword, keys.GeneratePassword.Keys()...), bind(tk.BindCancelDraft, CloseEntryForm))},
+		{ConfirmationKeys, t.Text(tk.GroupConfirmation), []key.Binding{bind(tk.BindConfirmDelete, keys.Confirm.Keys()...), bind(tk.BindCancelDelete, keys.Cancel.Keys()...)}},
+		{RecoveryKeys, t.Text(tk.GroupRecovery), []key.Binding{bind(tk.BindRecovery, keys.Reload.Keys()...)}},
 		{HelpKeys, t.Text(tk.GroupHelp), []key.Binding{
-			bind(tk.BindCloseHelp, "esc", ShowHelp, ShowHelpAnywhere),
+			bind(tk.BindCloseHelp, append([]string{CloseEntryForm}, append(keys.ShowHelp.Keys(), keys.ShowHelpAnywhere.Keys()...)...)...),
 			bind(tk.BindUp, help.Up.Keys()...), bind(tk.BindDown, help.Down.Keys()...),
 			bind(tk.BindPageUp, help.PageUp.Keys()...), bind(tk.BindPageDown, help.PageDown.Keys()...),
 			bind(tk.BindFirstLastPage, "home", "end"),

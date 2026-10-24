@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tobischo/gokeepasslib/v3"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/ui/login"
@@ -92,7 +93,7 @@ func TestQuestionMarksInSearchAndLoginAreNotHelpShortcuts(t *testing.T) {
 	fake := &outcomeVault{}
 	r = rootWithVault(t, fake)
 	r.activeView = screenLogin
-	r.login = login.NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: "vault.kdbx"}}, locale.En)
+	r.login = login.NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: "vault.kdbx"}}, locale.En, control.DefaultKeymap())
 	drainRoot(t, &r, r.login.Init())
 	sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: '?', Text: "?"}))
 	sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: tea.KeyF1}))

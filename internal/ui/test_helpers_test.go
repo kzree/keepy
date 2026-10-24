@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 	"github.com/tobischo/gokeepasslib/v3"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/ui/list"
@@ -86,8 +87,9 @@ func (v *outcomeVault) DeleteEntry(id gokeepasslib.UUID) error {
 
 func rootWithVault(t *testing.T, vault *outcomeVault) RootModel {
 	t.Helper()
-	r := RootModel{activeView: screenList, db: vault, list: list.NewListModel(locale.En), width: 120, height: 30}
+	r := RootModel{activeView: screenList, db: vault, list: list.NewListModel(locale.En, control.DefaultKeymap()), width: 120, height: 30}
 	r.setLocale(locale.En)
+	r.keys = control.DefaultKeymap()
 	r.list.SetEntries(vault.GetEntriesFlat())
 	r.list.SetListTableSize(110, 25)
 	return r
@@ -129,7 +131,7 @@ func captureEntrySubmission(t *testing.T, r *RootModel, cmd tea.Cmd) entryform.S
 func submitLogin(t *testing.T, r *RootModel, msg login.LoginSubmitMsg) {
 	t.Helper()
 	r.activeView = screenLogin
-	r.login = login.NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: msg.DBPath, KeyFilePath: msg.KeyFilePath}}, locale.En)
+	r.login = login.NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: msg.DBPath, KeyFilePath: msg.KeyFilePath}}, locale.En, control.DefaultKeymap())
 	drainRoot(t, r, r.login.Init())
 	for _, char := range msg.Password {
 		sendRoot(t, r, tea.KeyPressMsg(tea.Key{Code: char, Text: string(char)}))

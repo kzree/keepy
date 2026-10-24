@@ -24,7 +24,7 @@ func TestLoginPickerHelpCancelAndAuthenticationPreserveState(t *testing.T) {
 	r := rootWithVault(t, fake)
 	r.cfg = &service.Config{Preferences: service.Preferences{Locale: "saved-locale"}, Credentials: service.Credentials{DBPath: database}}
 	r.activeView = screenLogin
-	r.login = login.NewLoginModel(r.cfg, locale.En)
+	r.login = login.NewLoginModel(r.cfg, locale.En, control.DefaultKeymap())
 	drainRoot(t, &r, r.login.Init())
 	sendRoot(t, &r, tea.WindowSizeMsg{Width: 100, Height: 28})
 	for _, char := range "secret?" {

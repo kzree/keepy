@@ -1,6 +1,7 @@
 package entryform
 
 import (
+	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
@@ -11,7 +12,7 @@ import (
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/style"
 	"kzree.com/keepy/internal/textprovider"
-	"kzree.com/keepy/internal/textprovider/key"
+	tk "kzree.com/keepy/internal/textprovider/key"
 	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/textprovider/namespace"
 )
@@ -31,9 +32,10 @@ type EntryFormModel struct {
 	requestID   uint64
 	locale      locale.Locale
 	t           *textprovider.TextProvider
+	keys        control.Keymap
 }
 
-func NewEntryFormModel(l locale.Locale) EntryFormModel {
+func NewEntryFormModel(l locale.Locale, keys control.Keymap) EntryFormModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.BrightRed)
@@ -44,6 +46,7 @@ func NewEntryFormModel(l locale.Locale) EntryFormModel {
 	return EntryFormModel{
 		locale:     l,
 		t:          t,
+		keys:       keys,
 		formValues: values,
 		form:       form,
 		inputs:     inputs,
@@ -83,8 +86,7 @@ func (m EntryFormModel) Update(msg tea.Msg) (EntryFormModel, tea.Cmd) {
 		if m.loading {
 			return m, nil
 		}
-		switch msg.String() {
-		case control.GeneratePassword:
+		if key.Matches(msg, m.keys.GeneratePassword) {
 			return m.handleGeneratePassword()
 		}
 	}
@@ -113,7 +115,7 @@ func (m EntryFormModel) Update(msg tea.Msg) (EntryFormModel, tea.Cmd) {
 
 func (m EntryFormModel) View() string {
 	if m.loading {
-		return m.spinner.View() + m.t.Text(key.SavingEntry)
+		return m.spinner.View() + m.t.Text(tk.SavingEntry)
 	}
 
 	status := m.statusView()
@@ -138,11 +140,11 @@ func (m EntryFormModel) View() string {
 func (m EntryFormModel) statusView() string {
 	var body string
 	if m.conflict {
-		body = m.t.Text(key.DraftKeptForReview)
+		body = m.t.Text(tk.DraftKeptForReview)
 	} else if m.reviewDraft {
-		body = m.t.Text(key.DraftReview)
+		body = m.t.Text(tk.DraftReview)
 	} else if m.submitError != nil {
-		body = m.t.Text(key.DraftNotSaved)
+		body = m.t.Text(tk.DraftNotSaved)
 	}
 	if m.submitError != nil && !m.conflict {
 		if body != "" {

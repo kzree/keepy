@@ -9,13 +9,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tobischo/gokeepasslib/v3"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/textprovider/locale"
 )
 
 func TestResponsiveColumnsKeepRowSchemaAndFitAvailableWidth(t *testing.T) {
 	entry := service.VaultEntry{ID: gokeepasslib.NewUUID(), Title: "NeedleTitle", Username: "alice-user", URL: "https://example.test", Group: "PrivateGroup"}
-	m := NewListModel(locale.En)
+	m := NewListModel(locale.En, control.DefaultKeymap())
 	m.SetEntries([]service.VaultEntry{entry})
 	for _, width := range []int{0, 1, 2, 3, 20, 33, 34, 59, 60, 79, 80, 120} {
 		t.Run(fmt.Sprint(width), func(t *testing.T) {
@@ -62,7 +63,7 @@ func TestResponsiveColumnsKeepRowSchemaAndFitAvailableWidth(t *testing.T) {
 }
 
 func TestResizePreservesFilterAndScrolledSelection(t *testing.T) {
-	m := NewListModel(locale.En)
+	m := NewListModel(locale.En, control.DefaultKeymap())
 	entries := make([]service.VaultEntry, 30)
 	for i := range entries {
 		entries[i] = service.VaultEntry{ID: gokeepasslib.NewUUID(), Title: fmt.Sprintf("Row%02d", i), Username: "matching-user"}
@@ -82,7 +83,7 @@ func TestResizePreservesFilterAndScrolledSelection(t *testing.T) {
 }
 
 func TestFormUsesFullWidthBelowSidebarBreakpoint(t *testing.T) {
-	m := NewListModel(locale.En)
+	m := NewListModel(locale.En, control.DefaultKeymap())
 	m.SetEntries([]service.VaultEntry{{ID: gokeepasslib.NewUUID(), Title: "TableMarker"}})
 	m.SetListTableSize(130, 24)
 	m, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: 'n'}))
@@ -106,7 +107,7 @@ func TestFormUsesFullWidthBelowSidebarBreakpoint(t *testing.T) {
 }
 
 func TestTinySearchAndConfirmationStayBoundedAndKeepState(t *testing.T) {
-	m := NewListModel(locale.En)
+	m := NewListModel(locale.En, control.DefaultKeymap())
 	id := gokeepasslib.NewUUID()
 	m.SetEntries([]service.VaultEntry{{ID: id, Title: "Marker"}})
 	m.SetListTableSize(30, 5)

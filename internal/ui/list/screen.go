@@ -8,13 +8,14 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 	"github.com/tobischo/gokeepasslib/v3"
 	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/textprovider"
-	"kzree.com/keepy/internal/textprovider/key"
+	tk "kzree.com/keepy/internal/textprovider/key"
 	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/textprovider/namespace"
 	"kzree.com/keepy/internal/ui/common"
@@ -51,7 +52,8 @@ type ListModel struct {
 	editRequestID    uint64
 	reloadRequestID  uint64
 
-	t *textprovider.TextProvider
+	t    *textprovider.TextProvider
+	keys control.Keymap
 
 	width  int
 	height int
@@ -61,7 +63,7 @@ type ListModel struct {
 	confirm   common.ConfirmPromptModel
 }
 
-func NewListModel(l locale.Locale) ListModel {
+func NewListModel(l locale.Locale, keys control.Keymap) ListModel {
 	t := textprovider.New(l, namespace.List)
 	return ListModel{
 		showSearch:   false,
@@ -69,9 +71,10 @@ func NewListModel(l locale.Locale) ListModel {
 		activePane:   listPane,
 		table:        createEntryTable(t),
 		search:       search.NewSearchModel(t),
-		entryForm:    entryform.NewEntryFormModel(l),
-		confirm:      common.NewConfirmPrompt(),
+		entryForm:    entryform.NewEntryFormModel(l, keys),
+		confirm:      common.NewConfirmPrompt(keys),
 		t:            t,
+		keys:         keys,
 	}
 }
 
@@ -165,7 +168,7 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 		if m.reloading || m.deleting {
 			return m, nil
 		}
-		if msg.String() == control.ReloadVault && m.saveConflict {
+		if key.Matches(msg, m.keys.Reload) && m.saveConflict {
 			m.reloading = true
 			m.openingEdit = false
 			m.reloadRequestID++
@@ -180,7 +183,7 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 		if msg.String() == control.CloseEntryForm && m.showSidePane && m.activePane == createPane && !m.entryForm.IsSaving() {
 			return m.handleCloseNewEntryForm()
 		}
-		if m.saveConflict && (msg.String() == control.NewEntry || msg.String() == control.EditEntry || msg.String() == control.DeleteEntity) && !(m.showSidePane && m.activePane == createPane) {
+		if m.saveConflict && !m.showSearch && key.Matches(msg, m.keys.NewEntry, m.keys.EditEntry, m.keys.DeleteEntry) && !(m.showSidePane && m.activePane == createPane) {
 			return m, nil
 		}
 		if m.showSidePane && m.activePane == createPane {
@@ -198,18 +201,18 @@ func (m ListModel) Update(msg tea.Msg) (ListModel, tea.Cmd) {
 		disableInput := m.showSearch || m.showDeletePrompt || (m.showSidePane && m.activePane == createPane)
 
 		if !disableInput {
-			switch msg.String() {
-			case control.CopyEntry:
+			switch {
+			case key.Matches(msg, m.keys.CopyEntry):
 				return m.handleCopyEntry()
-			case control.NewEntry:
+			case key.Matches(msg, m.keys.NewEntry):
 				return m.handleOpenNewEntryForm()
-			case control.EditEntry:
+			case key.Matches(msg, m.keys.EditEntry):
 				return m.handleOpenEditEntryForm()
-			case control.ClearFilter:
+			case key.Matches(msg, m.keys.ClearFilter):
 				return m.handleClearFilter()
-			case control.Search:
+			case key.Matches(msg, m.keys.Search):
 				return m.handleShowSearch()
-			case control.DeleteEntity:
+			case key.Matches(msg, m.keys.DeleteEntry):
 				return m.handleOpenDeletePrompt()
 			}
 		}
@@ -329,21 +332,21 @@ func clearCopyFlashCmd(id int) tea.Cmd {
 // failures remain in the entry form; views never append global status themselves.
 func (m ListModel) GlobalNotice() string {
 	if m.deleting {
-		return m.t.Text(key.DeletingEntry)
+		return m.t.Text(tk.DeletingEntry)
 	}
 	var body string
 	if m.saveNotice != nil && (m.saveConflict || !(m.showSidePane && m.activePane == createPane)) {
 		var outcome *service.SaveError
 		if errors.As(m.saveNotice, &outcome) && outcome.Committed() {
-			body = m.t.Text(key.SaveCommittedNotice) + "\n"
+			body = m.t.Text(tk.SaveCommittedNotice) + "\n"
 		}
 		if m.saveConflict {
-			body = fmt.Sprintf(m.t.Text(key.ReloadConflict), control.Label(control.ReloadVault)) + "\n"
+			body = fmt.Sprintf(m.t.Text(tk.ReloadConflict), control.Label(m.keys.Reload.Keys()...)) + "\n"
 		}
 		body += m.saveNotice.Error()
 	}
 	if m.reloading {
-		body = m.t.Text(key.ReloadingDatabase)
+		body = m.t.Text(tk.ReloadingDatabase)
 	}
 	return body
 }

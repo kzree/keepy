@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/util/testutil"
@@ -41,7 +42,7 @@ func TestBrowsingSelectsDatabaseAndKeyWithoutLosingPassword(t *testing.T) {
 	require.NoError(t, os.WriteFile(database, []byte("database"), 0o600))
 	require.NoError(t, os.WriteFile(key, []byte("key"), 0o600))
 	elsewhere := t.TempDir()
-	m := NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: filepath.Join(elsewhere, "missing.kdbx"), KeyFilePath: filepath.Join(elsewhere, "saved.key")}}, locale.En)
+	m := NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: filepath.Join(elsewhere, "missing.kdbx"), KeyFilePath: filepath.Join(elsewhere, "saved.key")}}, locale.En, control.DefaultKeymap())
 	m.SetSize(160, 24)
 	var requests []LoginSubmitMsg
 	drainLogin(t, &m, m.Init(), &requests)
@@ -76,7 +77,7 @@ func TestBrowsingSelectsDatabaseAndKeyWithoutLosingPassword(t *testing.T) {
 }
 
 func TestOptionalKeyFileToggleRetainsPathAndOmitsDisabledKey(t *testing.T) {
-	m := NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: "vault.kdbx", KeyFilePath: "saved.key"}}, locale.En)
+	m := NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: "vault.kdbx", KeyFilePath: "saved.key"}}, locale.En, control.DefaultKeymap())
 	m.SetSize(100, 24)
 	var requests []LoginSubmitMsg
 	drainLogin(t, &m, m.Init(), &requests)
@@ -95,7 +96,7 @@ func TestOptionalKeyFileToggleRetainsPathAndOmitsDisabledKey(t *testing.T) {
 
 func TestPickerRejectsStaleResultsAndRecoversDirectoryErrors(t *testing.T) {
 	dir := testutil.TempHome(t)
-	m := NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: filepath.Join(dir, "vault.kdbx")}}, locale.En)
+	m := NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: filepath.Join(dir, "vault.kdbx")}}, locale.En, control.DefaultKeymap())
 	m.SetSize(80, 24)
 	m, cmd := m.openPicker(pickerDatabase)
 	old := cmd()
@@ -126,7 +127,7 @@ func TestPickerNavigatesDirectoriesAndManualPathsStayEditable(t *testing.T) {
 	require.NoError(t, os.Mkdir(nested, 0o755))
 	path := filepath.Join(nested, "vault.kdbx")
 	require.NoError(t, os.WriteFile(path, []byte("database"), 0o600))
-	m := NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: dir}}, locale.En)
+	m := NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: dir}}, locale.En, control.DefaultKeymap())
 	m.SetSize(120, 24)
 	var requests []LoginSubmitMsg
 	drainLogin(t, &m, m.Init(), &requests)
@@ -152,7 +153,7 @@ func TestPickerNavigatesDirectoriesAndManualPathsStayEditable(t *testing.T) {
 }
 
 func TestLateFormCompletionAfterPickerCancelDoesNotAuthenticate(t *testing.T) {
-	m := NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: "vault.kdbx"}}, locale.En)
+	m := NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: "vault.kdbx"}}, locale.En, control.DefaultKeymap())
 	m.SetSize(100, 24)
 	var requests []LoginSubmitMsg
 	drainLogin(t, &m, m.Init(), &requests)
@@ -168,7 +169,7 @@ func TestLateFormCompletionAfterPickerCancelDoesNotAuthenticate(t *testing.T) {
 }
 
 func TestLoginLayoutKeepsInputUsableWithLongPaths(t *testing.T) {
-	m := NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: strings.Repeat("long-path/", 30) + "vault.kdbx", KeyFilePath: strings.Repeat("key-path/", 30) + "vault.key"}}, locale.En)
+	m := NewLoginModel(&service.Config{Credentials: service.Credentials{DBPath: strings.Repeat("long-path/", 30) + "vault.kdbx", KeyFilePath: strings.Repeat("key-path/", 30) + "vault.key"}}, locale.En, control.DefaultKeymap())
 	var requests []LoginSubmitMsg
 	drainLogin(t, &m, m.Init(), &requests)
 	for _, size := range [][2]int{{100, 24}, {40, 12}, {18, 3}, {8, 1}, {100, 24}} {
@@ -182,7 +183,7 @@ func TestLoginLayoutKeepsInputUsableWithLongPaths(t *testing.T) {
 }
 
 func TestMissingRequiredPathsDoNotSubmit(t *testing.T) {
-	m := NewLoginModel(nil, locale.En)
+	m := NewLoginModel(nil, locale.En, control.DefaultKeymap())
 	m.SetSize(100, 24)
 	var requests []LoginSubmitMsg
 	drainLogin(t, &m, m.Init(), &requests)

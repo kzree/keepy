@@ -6,7 +6,7 @@ import (
 	"charm.land/huh/v2"
 	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/textprovider"
-	"kzree.com/keepy/internal/textprovider/key"
+	tk "kzree.com/keepy/internal/textprovider/key"
 	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/util"
 )
@@ -29,7 +29,7 @@ func newShortLoginForm(v *loginFormValues, l locale.Locale, t *textprovider.Text
 func newLoginForm(v *loginFormValues, l locale.Locale, t *textprovider.TextProvider) *huh.Form {
 	requiredPath := requiredPath(t)
 	fields := []huh.Field{passwordInput(v, t), huh.NewInput().
-		Title(t.Text(key.LabelDBPath)).
+		Title(t.Text(tk.LabelDBPath)).
 		Key(dbPathKey).
 		Prompt(": ").
 		Inline(true).
@@ -37,7 +37,7 @@ func newLoginForm(v *loginFormValues, l locale.Locale, t *textprovider.TextProvi
 	}
 	if v.useKeyFile {
 		fields = append(fields, huh.NewInput().
-			Title(t.Text(key.LabelKeyFilePath)).
+			Title(t.Text(tk.LabelKeyFilePath)).
 			Key(keyFilePathKey).
 			Prompt(": ").
 			Inline(true).
@@ -47,14 +47,14 @@ func newLoginForm(v *loginFormValues, l locale.Locale, t *textprovider.TextProvi
 }
 
 func passwordInput(v *loginFormValues, t *textprovider.TextProvider) *huh.Input {
-	return huh.NewInput().Title(t.Text(key.LabelPassword)).Key(passwordKey).
+	return huh.NewInput().Title(t.Text(tk.LabelPassword)).Key(passwordKey).
 		Prompt(": ").Inline(true).Value(&v.password).EchoMode(huh.EchoModePassword)
 }
 
 func requiredPath(t *textprovider.TextProvider) func(string) error {
 	return func(path string) error {
 		if path == "" {
-			return errors.New(t.Text(key.ErrorPathRequired))
+			return errors.New(t.Text(tk.ErrorPathRequired))
 		}
 		return nil
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tobischo/gokeepasslib/v3"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/util/testutil"
@@ -18,7 +19,7 @@ import (
 func TestFailedSubmissionPreservesDraftWithoutAutomaticRetry(t *testing.T) {
 	for _, kind := range []service.SaveErrorKind{service.SaveFailed, service.SaveConflict} {
 		t.Run((&service.SaveError{Kind: kind}).Error(), func(t *testing.T) {
-			m := NewEntryFormModel(locale.En)
+			m := NewEntryFormModel(locale.En, control.DefaultKeymap())
 			id := gokeepasslib.NewUUID()
 			draft := service.NewVaultEntry{Title: "Draft", Username: "user", Password: "draft secret", URL: "https://example.com"}
 			m.Edit(id, draft)
@@ -70,7 +71,7 @@ func sendForm(t *testing.T, m *EntryFormModel, msg tea.Msg, requests *[]SubmitEn
 }
 
 func TestKeyboardFailureEditAndExplicitRetryPreservesGeneratedPassword(t *testing.T) {
-	m := NewEntryFormModel(locale.En)
+	m := NewEntryFormModel(locale.En, control.DefaultKeymap())
 	m.SetSize(55, 20)
 	var requests []SubmitEntryMsg
 	testutil.DrainTeaCommands(t, m.Init(), func(msg tea.Msg) tea.Cmd { var cmd tea.Cmd; m, cmd = m.Update(msg); return cmd })
@@ -105,7 +106,7 @@ func TestKeyboardFailureEditAndExplicitRetryPreservesGeneratedPassword(t *testin
 }
 
 func TestFormCannotBeClosedOrChangedWhileSaving(t *testing.T) {
-	m := NewEntryFormModel(locale.En)
+	m := NewEntryFormModel(locale.En, control.DefaultKeymap())
 	m.formValues.Password = "existing draft"
 	m.loading = true
 	for _, key := range []tea.Key{{Code: tea.KeyEscape}, {Code: 'g', Mod: tea.ModCtrl}} {
@@ -117,7 +118,7 @@ func TestFormCannotBeClosedOrChangedWhileSaving(t *testing.T) {
 }
 
 func TestEditSubmissionCapturesIDBeforeReset(t *testing.T) {
-	m := NewEntryFormModel(locale.En)
+	m := NewEntryFormModel(locale.En, control.DefaultKeymap())
 	id := gokeepasslib.NewUUID()
 	m.Edit(id, service.NewVaultEntry{Title: "Draft", Password: "secret"})
 	cmd := m.submitEntry()

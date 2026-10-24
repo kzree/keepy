@@ -3,6 +3,7 @@ package login
 
 import (
 	"charm.land/bubbles/v2/filepicker"
+	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
@@ -38,9 +39,10 @@ type LoginModel struct {
 	pickerError    error
 	locale         locale.Locale
 	t              *textprovider.TextProvider
+	keys           control.Keymap
 }
 
-func NewLoginModel(cfg *service.Config, l locale.Locale) LoginModel {
+func NewLoginModel(cfg *service.Config, l locale.Locale, keys control.Keymap) LoginModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.BrightRed)
@@ -67,6 +69,7 @@ func NewLoginModel(cfg *service.Config, l locale.Locale) LoginModel {
 		formValues:     &formValues,
 		locale:         l,
 		t:              textprovider.New(l, namespace.Login),
+		keys:           keys,
 	}
 	m.setForm()
 	return m
@@ -91,14 +94,14 @@ func (m LoginModel) Update(msg tea.Msg) (LoginModel, tea.Cmd) {
 		if m.picking != pickerNone {
 			return m.updatePicker(msg)
 		}
-		switch msg.String() {
-		case control.LoginToggle:
+		switch {
+		case key.Matches(msg, m.keys.LoginTogglePaths):
 			return m.handleTogglePathFields()
-		case control.LoginBrowseDatabase:
+		case key.Matches(msg, m.keys.LoginBrowseDatabase):
 			return m.openPicker(pickerDatabase)
-		case control.LoginBrowseKeyFile:
+		case key.Matches(msg, m.keys.LoginBrowseKeyFile):
 			return m.openPicker(pickerKeyFile)
-		case control.LoginToggleKeyFile:
+		case key.Matches(msg, m.keys.LoginToggleKeyFile):
 			m.formValues.useKeyFile = !m.formValues.useKeyFile
 			if m.formValues.useKeyFile && m.formValues.keyFilePath == "" {
 				m.showPathFields = true

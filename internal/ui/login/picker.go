@@ -9,12 +9,13 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/filepicker"
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/style"
-	"kzree.com/keepy/internal/textprovider/key"
+	tk "kzree.com/keepy/internal/textprovider/key"
 )
 
 type pickerTarget uint8
@@ -60,7 +61,7 @@ func (m *LoginModel) newPicker(directory string) {
 	m.picker.ShowPermissions, m.picker.ShowSize = false, false
 	m.picker.Styles.Cursor = lipgloss.NewStyle().Foreground(lipgloss.BrightBlue)
 	m.picker.Styles.Selected = m.picker.Styles.Cursor.Bold(true)
-	m.picker.Styles.EmptyDirectory = lipgloss.NewStyle().SetString(fmt.Sprintf(m.t.Text(key.PickerEmpty), control.Label(control.ReloadVault)))
+	m.picker.Styles.EmptyDirectory = lipgloss.NewStyle().SetString(fmt.Sprintf(m.t.Text(tk.PickerEmpty), control.Label(m.keys.Reload.Keys()...)))
 	m.picker.SetHeight(max(1, m.height-3))
 }
 
@@ -123,7 +124,7 @@ func (m LoginModel) updatePicker(msg tea.KeyPressMsg) (LoginModel, tea.Cmd) {
 	if m.pickerLoading {
 		return m, nil
 	}
-	if msg.String() == control.ReloadVault {
+	if key.Matches(msg, m.keys.Reload) {
 		if m.picker.CurrentDirectory == "." {
 			return m.openPicker(m.picking)
 		}
@@ -142,7 +143,7 @@ func (m LoginModel) updatePicker(msg tea.KeyPressMsg) (LoginModel, tea.Cmd) {
 			return m, nil
 		}
 		if !info.Mode().IsRegular() {
-			m.pickerError = errors.New(m.t.Text(key.ErrorRegularFile))
+			m.pickerError = errors.New(m.t.Text(tk.ErrorRegularFile))
 			return m, nil
 		}
 		if m.picking == pickerDatabase {
@@ -164,23 +165,23 @@ func (m LoginModel) updatePicker(msg tea.KeyPressMsg) (LoginModel, tea.Cmd) {
 }
 
 func (m LoginModel) pickerView() string {
-	title := m.t.Text(key.PickerTitleDatabase)
+	title := m.t.Text(tk.PickerTitleDatabase)
 	if m.picking == pickerKeyFile {
-		title = m.t.Text(key.PickerTitleKeyFile)
+		title = m.t.Text(tk.PickerTitleKeyFile)
 	}
 	body := m.picker.View()
 	if m.pickerLoading {
-		body = m.t.Text(key.PickerReading)
+		body = m.t.Text(tk.PickerReading)
 	}
 	if m.pickerError != nil {
 		body = style.ErrorText.Render(m.pickerError.Error())
 	}
 	footer := strings.Join([]string{
-		control.Hint(m.t.Text(key.HintPickerCancel), control.CloseEntryForm),
-		control.Hint(m.t.Text(key.HintPickerSelect), "enter"),
-		control.Hint(m.t.Text(key.HintPickerParent), "left"),
-		control.Hint(m.t.Text(key.HintPickerRetry), control.ReloadVault),
-		control.Hint(m.t.Text(key.HintHelp), control.ShowHelpAnywhere),
+		control.Hint(m.t.Text(tk.HintPickerCancel), control.CloseEntryForm),
+		control.Hint(m.t.Text(tk.HintPickerSelect), "enter"),
+		control.Hint(m.t.Text(tk.HintPickerParent), "left"),
+		control.Hint(m.t.Text(tk.HintPickerRetry), m.keys.Reload.Keys()...),
+		control.Hint(m.t.Text(tk.HintHelp), m.keys.ShowHelpAnywhere.Keys()...),
 	}, " · ")
 	if m.width > 0 {
 		footer = ansi.Truncate(footer, m.width, "…")

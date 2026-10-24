@@ -17,7 +17,7 @@ func (r *RootModel) renderCurrentView(contentWidth, contentHeight int) string {
 	switch r.activeView {
 	case screenLogin:
 		if r.configLoadError != nil {
-			return fmt.Sprintf(r.t.Text(key.ConfigUnavailable), control.Label(control.ReloadVault), control.Label(control.QuitApplication))
+			return fmt.Sprintf(r.t.Text(key.ConfigUnavailable), control.Label(r.keys.Reload.Keys()...), control.Label(r.keys.Quit.Keys()...))
 		}
 		return r.login.View()
 	case screenList:

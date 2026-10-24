@@ -11,7 +11,7 @@ import (
 )
 
 func TestKeymapHelpScrollsWrapsAndKeepsCloseHintsVisible(t *testing.T) {
-	m := NewKeymapHelpModel(locale.En)
+	m := NewKeymapHelpModel(locale.En, control.DefaultKeymap())
 	m.SetContext(control.ListKeys, false)
 	m.SetSize(70, 12)
 	top := m.View()

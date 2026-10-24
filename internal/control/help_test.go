@@ -13,7 +13,7 @@ import (
 )
 
 func TestGroupedKeymapUsesEffectiveNavigationBindings(t *testing.T) {
-	groups := KeymapGroups(locale.En)
+	groups := KeymapGroups(locale.En, DefaultKeymap())
 	byID := make(map[string]KeymapGroup)
 	for _, group := range groups {
 		require.NotEmpty(t, group.Bindings)
@@ -59,8 +59,8 @@ func TestFormKeyMapTranslatesHuhHintsWithoutChangingKeys(t *testing.T) {
 }
 
 func TestLabelFormatsBindingKeys(t *testing.T) {
-	assert.Equal(t, "Ctrl+R", Label(ReloadVault))
-	assert.Equal(t, "Esc/?/F1", Label(CloseEntryForm, ShowHelp, ShowHelpAnywhere))
-	assert.Equal(t, "q", Label(QuitApplicationAlt), "bare letters must not suggest Shift")
+	assert.Equal(t, "Ctrl+R", Label("ctrl+r"))
+	assert.Equal(t, "Esc/?/F1", Label("esc", "?", "f1"))
+	assert.Equal(t, "q", Label("q"), "bare letters must not suggest Shift")
 	assert.Equal(t, "↑/↓/PgUp/PgDn", Label("up", "down", "pgup", "pgdown"))
 }

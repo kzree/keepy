@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tobischo/gokeepasslib/v3"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/ui/common"
@@ -15,7 +16,7 @@ import (
 )
 
 func TestConflictDraftSurvivesFailedReloadAndRecovery(t *testing.T) {
-	m := NewListModel(locale.En)
+	m := NewListModel(locale.En, control.DefaultKeymap())
 	m.SetListTableSize(120, 30)
 	id := gokeepasslib.NewUUID()
 	entry := service.VaultEntry{ID: id, Title: "My draft"}
@@ -40,7 +41,7 @@ func TestConflictDraftSurvivesFailedReloadAndRecovery(t *testing.T) {
 }
 
 func TestDelayedEditCannotReplaceNewDraftOrConflictRecovery(t *testing.T) {
-	m := NewListModel(locale.En)
+	m := NewListModel(locale.En, control.DefaultKeymap())
 	m.SetListTableSize(120, 30)
 	entry := service.VaultEntry{ID: gokeepasslib.NewUUID(), Title: "Old edit"}
 	m.SetEntries([]service.VaultEntry{entry})
@@ -59,7 +60,7 @@ func TestDelayedEditCannotReplaceNewDraftOrConflictRecovery(t *testing.T) {
 }
 
 func TestDeleteConflictRequiresReloadBeforeAnotherMutation(t *testing.T) {
-	m := NewListModel(locale.En)
+	m := NewListModel(locale.En, control.DefaultKeymap())
 	m, _ = m.Update(SaveResultMsg{Error: &service.SaveError{Kind: service.SaveConflict, Err: errors.New("external change")}})
 	for _, key := range []rune{'n', 'e', 'd'} {
 		var cmd tea.Cmd
@@ -75,14 +76,14 @@ func TestDeleteConflictRequiresReloadBeforeAnotherMutation(t *testing.T) {
 }
 
 func TestDeleteOnEmptyListDoesNotOpenPrompt(t *testing.T) {
-	m := NewListModel(locale.En)
+	m := NewListModel(locale.En, control.DefaultKeymap())
 	m, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: 'd'}))
 	assert.Nil(t, cmd)
 	assert.False(t, m.showDeletePrompt)
 }
 
 func TestStaleConfirmationCannotConsumeNewPrompt(t *testing.T) {
-	m := NewListModel(locale.En)
+	m := NewListModel(locale.En, control.DefaultKeymap())
 	m.SetEntries([]service.VaultEntry{{ID: gokeepasslib.NewUUID(), Title: "Entry"}})
 	m, oldOpen := m.Update(tea.KeyPressMsg(tea.Key{Code: 'd'}))
 	old := oldOpen().(common.OpenConfirmMsg)
@@ -102,4 +103,18 @@ func TestStaleConfirmationCannotConsumeNewPrompt(t *testing.T) {
 	m, deletion := m.Update(confirm())
 	require.NotNil(t, deletion)
 	assert.Equal(t, current.RequestID, deletion().(DeleteEntryRequestMsg).RequestID)
+}
+
+func TestConflictBlocksMutationsButNotSearchInput(t *testing.T) {
+	m := NewListModel(locale.En, control.DefaultKeymap())
+	m.SetListTableSize(120, 30)
+	m.SetEntries([]service.VaultEntry{{ID: gokeepasslib.NewUUID(), Title: "Needed"}})
+	m, _ = m.Update(SaveResultMsg{Error: &service.SaveError{Kind: service.SaveConflict, Err: errors.New("external change")}})
+	m, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: 'n', Text: "n"}))
+	assert.False(t, m.IsTextInputActive(), "conflict recovery blocks creating entries")
+	m, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: 'f', Text: "f"}))
+	for _, char := range "ned" {
+		m, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: char, Text: string(char)}))
+	}
+	assert.Equal(t, "ned", m.search.Value())
 }

@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
+	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
 	"kzree.com/keepy/internal/textprovider/locale"
 	"kzree.com/keepy/internal/ui/list"
@@ -46,7 +47,7 @@ func TestRootBottomBarRemainsGlobalAcrossScreensAndNarrowResizes(t *testing.T) {
 	for _, view := range []screen{screenList, screenLogin} {
 		r.activeView = view
 		if view == screenLogin {
-			r.login = login.NewLoginModel(&service.Config{}, locale.En)
+			r.login = login.NewLoginModel(&service.Config{}, locale.En, control.DefaultKeymap())
 			drainRoot(t, &r, r.login.Init())
 		}
 		for _, size := range [][2]int{{120, 30}, {60, 18}, {20, 6}} {

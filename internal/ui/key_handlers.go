@@ -1,27 +1,27 @@
 package ui
 
 import (
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/ui/common"
 )
 
 func (r RootModel) handleKeyPressMsg(msg tea.KeyPressMsg) (RootModel, tea.Cmd, bool) {
-	key := msg.String()
-	if key == control.ShowHelpAnywhere || (key == control.ShowHelp && (r.helpVisible || !r.isTextInputActive())) {
+	if key.Matches(msg, r.keys.ShowHelpAnywhere) || (key.Matches(msg, r.keys.ShowHelp) && (r.helpVisible || !r.isTextInputActive())) {
 		r.helpVisible = !r.helpVisible
 		if r.helpVisible {
-			r.keymapHelp = common.NewKeymapHelpModel(r.locale)
+			r.keymapHelp = common.NewKeymapHelpModel(r.locale, r.keys)
 		}
 		r.resizeViews()
 		return r, nil, true
 	}
 	if r.helpVisible {
-		switch key {
-		case "esc":
+		switch {
+		case msg.String() == control.CloseEntryForm:
 			r.helpVisible = false
 			return r, nil, true
-		case control.QuitApplication, control.QuitApplicationAlt:
+		case key.Matches(msg, r.keys.Quit, r.keys.QuitAlt):
 			if r.pendingOperation.kind != operationNone {
 				r.quitAfterOperation = true
 				return r, nil, true
@@ -33,20 +33,18 @@ func (r RootModel) handleKeyPressMsg(msg tea.KeyPressMsg) (RootModel, tea.Cmd, b
 		return r, cmd, true
 	}
 	if r.pendingOperation.kind != operationNone {
-		if msg.String() == control.QuitApplication || (msg.String() == control.QuitApplicationAlt && r.activeView == screenList && !r.list.IsTextInputActive()) {
+		if key.Matches(msg, r.keys.Quit) || (key.Matches(msg, r.keys.QuitAlt) && r.activeView == screenList && !r.list.IsTextInputActive()) {
 			r.quitAfterOperation = true
 		}
 		return r, nil, true
 	}
-	switch msg.String() {
-	case control.QuitApplication:
+	switch {
+	case key.Matches(msg, r.keys.Quit):
 		return r, tea.Quit, true
-	case control.ReloadVault:
-		if r.activeView == screenLogin && r.configLoadError != nil {
-			r, cmd := r.retryConfiguration()
-			return r, cmd, true
-		}
-	case control.QuitApplicationAlt:
+	case key.Matches(msg, r.keys.Reload) && r.activeView == screenLogin && r.configLoadError != nil:
+		r, cmd := r.retryConfiguration()
+		return r, cmd, true
+	case key.Matches(msg, r.keys.QuitAlt):
 		if r.activeView == screenLogin || (r.activeView == screenList && r.list.IsTextInputActive()) {
 			return r, nil, false
 		}

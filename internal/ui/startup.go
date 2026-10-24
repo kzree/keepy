@@ -21,17 +21,23 @@ type clipboardInitializedMsg struct{ Error error }
 func initializeClipboard() error          { return clipboard.Init() }
 func writeClipboardText(data []byte) bool { return clipboard.Write(clipboard.FmtText, data) != nil }
 
-// configLocale resolves the saved preference; an unavailable config uses English.
-func configLocale(cfg *service.Config) locale.Locale {
-	if cfg == nil {
-		return locale.En
-	}
-	return locale.Resolve(cfg.Preferences.Locale)
-}
-
 func (r *RootModel) setLocale(l locale.Locale) {
 	r.locale = l
 	r.t = textprovider.New(l, namespace.Application)
+}
+
+// applyConfig resolves preferences and rebuilds the pre-login screens. An
+// unavailable config uses English and default keys. Invalid key overrides are
+// reported, and defaults stay in effect, without blocking login.
+func (r *RootModel) applyConfig(cfg *service.Config) {
+	l, overrides := locale.En, map[string][]string(nil)
+	if cfg != nil {
+		l, overrides = locale.Resolve(cfg.Preferences.Locale), cfg.Keybindings
+	}
+	r.setLocale(l)
+	r.keys, r.keymapError = control.ResolveKeymap(overrides)
+	r.login = login.NewLoginModel(cfg, r.locale, r.keys)
+	r.list = list.NewListModel(r.locale, r.keys)
 }
 
 // updateApplicationNotice keeps independent startup/config/copy errors from
@@ -39,7 +45,10 @@ func (r *RootModel) setLocale(l locale.Locale) {
 func (r *RootModel) updateApplicationNotice() {
 	var notices []string
 	if r.configLoadError != nil {
-		notices = append(notices, fmt.Sprintf(r.t.Text(key.NoticeConfigLoad), control.Label(control.ReloadVault), r.configLoadError))
+		notices = append(notices, fmt.Sprintf(r.t.Text(key.NoticeConfigLoad), control.Label(r.keys.Reload.Keys()...), r.configLoadError))
+	}
+	if r.keymapError != nil {
+		notices = append(notices, fmt.Sprintf(r.t.Text(key.NoticeKeymapInvalid), r.keymapError))
 	}
 	if r.clipboardError != nil {
 		// golang.design/x/clipboard caches Init's result with sync.Once. Retrying
@@ -59,11 +68,9 @@ func (r RootModel) retryConfiguration() (RootModel, tea.Cmd) {
 	cfg, err := service.LoadConfig()
 	r.configLoadError = err
 	if err == nil {
-		// Login is still blocked here, so the empty list can adopt the locale too.
+		// Login is still blocked here, so the empty list can adopt the config too.
 		r.cfg = cfg
-		r.setLocale(configLocale(cfg))
-		r.login = login.NewLoginModel(cfg, r.locale)
-		r.list = list.NewListModel(r.locale)
+		r.applyConfig(cfg)
 	}
 	r.updateApplicationNotice()
 	r.resizeViews()

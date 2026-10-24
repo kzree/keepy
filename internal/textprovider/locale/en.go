@@ -23,6 +23,7 @@ var enApplication = map[string]string{
 	key.NoticeClipboardUnavailable: "Clipboard unavailable. Restore clipboard access and restart to enable copying: %v",
 	key.NoticeConfigSave:           "Vault opened, but settings could not be saved: %v",
 	key.NoticeCopyFailed:           "Copy failed: %v",
+	key.NoticeKeymapInvalid:        "Key binding overrides ignored; using defaults. Correct [keybindings] and restart: %v",
 	key.ErrorClipboardNotReady:     "clipboard is not ready",
 	key.ErrorPasswordNotFound:      "password not found for entry",
 	key.ErrorClipboardWrite:        "failed to write password to clipboard",

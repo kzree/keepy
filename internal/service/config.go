@@ -26,6 +26,9 @@ type Preferences struct {
 type Config struct {
 	Preferences Preferences `toml:"preferences"`
 	Credentials Credentials `toml:"credentials"`
+	// Keybindings overrides default keys by action name. Saving preserves the
+	// configured values even when the UI rejected them and used defaults.
+	Keybindings map[string][]string `toml:"keybindings,omitempty"`
 }
 
 func createDefaultConfig() (*Config, error) {

@@ -105,8 +105,18 @@ The root-owned BottomBar renders application-wide errors and global save/reload
 notices. Screens receive the remaining content space and must not append global
 notices themselves. Keep draft-specific errors and review guidance in the form.
 
-Keymap help reuses application binding constants and the effective table/form
-navigation maps. `?` opens help only outside text inputs; `F1` works everywhere.
+Root resolves one effective `control.Keymap` from `[keybindings]` config
+overrides with `control.ResolveKeymap` and passes it to screens; dispatch uses
+`key.Matches` against it, and help and shortcut hints read the same keymap. Any
+invalid override (unknown action, malformed key, conflict, or printable key in a
+text-input context) rejects all overrides: defaults apply, a notice is shown,
+login is not blocked, and the saved overrides are preserved. When a handler's
+key acceptance changes, update that action's contexts in `actionSpecs` and the
+fixed keys in `reservedKeys` so conflict validation matches dispatch. Esc, Enter,
+and component navigation keys stay fixed.
+
+Keymap help reuses the effective keymap and the table/form navigation maps.
+`?` opens help only outside text inputs; `F1` works everywhere.
 Help preserves underlying screen models and continues processing background
 completions. Help input must not trigger actions in the underlying view.
 

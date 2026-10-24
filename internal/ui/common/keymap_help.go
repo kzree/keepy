@@ -23,13 +23,14 @@ type KeymapHelpModel struct {
 	context       string
 	busy          bool
 	groups        []control.KeymapGroup
+	keys          control.Keymap
 	t             *textprovider.TextProvider
 }
 
-func NewKeymapHelpModel(l locale.Locale) KeymapHelpModel {
+func NewKeymapHelpModel(l locale.Locale, keys control.Keymap) KeymapHelpModel {
 	v := viewport.New()
 	v.KeyMap = control.HelpViewportKeyMap()
-	return KeymapHelpModel{viewport: v, groups: control.KeymapGroups(l), t: textprovider.New(l, namespace.Help)}
+	return KeymapHelpModel{viewport: v, groups: control.KeymapGroups(l, keys), keys: keys, t: textprovider.New(l, namespace.Help)}
 }
 
 func (m *KeymapHelpModel) SetSize(width, height int) {
@@ -94,7 +95,7 @@ func (m KeymapHelpModel) View() string {
 		return ""
 	}
 	footer := ansi.Truncate(strings.Join([]string{
-		control.Hint(m.t.Text(key.HintClose), "esc", control.ShowHelp, control.ShowHelpAnywhere),
+		control.Hint(m.t.Text(key.HintClose), append([]string{control.CloseEntryForm}, append(m.keys.ShowHelp.Keys(), m.keys.ShowHelpAnywhere.Keys()...)...)...),
 		control.Hint(m.t.Text(key.HintScroll), "up", "down"),
 		control.Hint(m.t.Text(key.HintPage), "pgup", "pgdown"),
 		control.Hint(m.t.Text(key.HintFirstLast), "home", "end"),
