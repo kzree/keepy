@@ -237,7 +237,7 @@ func TestSaveConfigReturnsErrorWhenParentPathIsFile(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestClipboardClearDelay(t *testing.T) {
+func TestTimeoutPreferences(t *testing.T) {
 	for value, want := range map[string]time.Duration{
 		"":     DefaultClipboardTimeout,
 		"30s":  30 * time.Second,
@@ -250,6 +250,15 @@ func TestClipboardClearDelay(t *testing.T) {
 		require.NoError(t, err, value)
 		assert.Equal(t, want, delay, value)
 	}
+	delay, err := Preferences{}.LockDelay()
+	require.NoError(t, err)
+	assert.Equal(t, DefaultLockTimeout, delay)
+	delay, err = Preferences{LockTimeout: "off"}.LockDelay()
+	require.NoError(t, err)
+	assert.Zero(t, delay)
+	delay, err = Preferences{LockTimeout: "soon"}.LockDelay()
+	require.ErrorContains(t, err, "lock_timeout")
+	assert.Equal(t, DefaultLockTimeout, delay)
 	for _, value := range []string{"2 minutes", "-1m", "never"} {
 		delay, err := Preferences{ClipboardTimeout: value}.ClipboardClearDelay()
 		require.ErrorContains(t, err, "clipboard_timeout", value)

@@ -491,3 +491,21 @@ func TestLockAndSaveReturnsPersistenceErrors(t *testing.T) {
 		requireSaveErrorKind(t, vault.LockAndSave(), SaveFailed)
 	})
 }
+
+func TestCloseForgetsVaultUntilAuthenticatedAgain(t *testing.T) {
+	entry := newTestEntry("title", "user", "secret", "")
+	vault := newPersistedTestVault(t, gokeepasslib.Group{Name: "root", Entries: []gokeepasslib.Entry{entry}})
+
+	vault.Close()
+
+	assert.Empty(t, vault.GetEntriesFlat())
+	password, err := vault.GetEntryPassword(entry.UUID)
+	require.NoError(t, err)
+	assert.Empty(t, password)
+	assert.Empty(t, vault.password)
+	require.Error(t, vault.AddNewEntry(NewVaultEntry{Title: "after close"}))
+	require.Error(t, vault.ReAuthenticate(), "reopening requires the password again")
+
+	require.NoError(t, vault.Authenticate("vault.kdbx", "", testVaultPassword, false))
+	assertEntryPassword(t, vault, entry.UUID, "secret")
+}

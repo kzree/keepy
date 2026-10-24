@@ -3,6 +3,7 @@ package ui
 import (
 	"sync/atomic"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
@@ -31,6 +32,7 @@ type outcomeVault struct {
 	reloaded        []service.VaultEntry
 	mutations       int
 	reloads         int
+	closes          int
 }
 
 func (v *outcomeVault) Authenticate(dbPath, keyPath, password string, useKey bool) error {
@@ -39,6 +41,7 @@ func (v *outcomeVault) Authenticate(dbPath, keyPath, password string, useKey boo
 	v.authPassword, v.authUsesKey = password, useKey
 	return v.authErr
 }
+func (v *outcomeVault) Close() { v.closes++ }
 func (v *outcomeVault) ReAuthenticate() error {
 	v.reloads++
 	if v.reloadErr == nil {
@@ -87,7 +90,7 @@ func (v *outcomeVault) DeleteEntry(id gokeepasslib.UUID) error {
 
 func rootWithVault(t *testing.T, vault *outcomeVault) RootModel {
 	t.Helper()
-	r := RootModel{activeView: screenList, db: vault, list: list.NewListModel(locale.En, control.DefaultKeymap()), width: 120, height: 30}
+	r := RootModel{activeView: screenList, db: vault, list: list.NewListModel(locale.En, control.DefaultKeymap()), width: 120, height: 30, now: time.Now}
 	r.setLocale(locale.En)
 	r.keys = control.DefaultKeymap()
 	r.list.SetEntries(vault.GetEntriesFlat())

@@ -197,6 +197,18 @@ func (v *Vault) ReAuthenticate() error {
 	return v.authenticate(v.dbPath, v.keyFilePath, v.password, v.useKeyFile)
 }
 
+// Close forgets the decrypted database and credentials. Authenticate opens the
+// vault again; until then, reads return nothing and mutations fail.
+func (v *Vault) Close() {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.authenticated = false
+	v.authError = nil
+	v.db = nil
+	v.password = ""
+	v.baseline = nil
+}
+
 func (v *Vault) GetEntriesFlat() []VaultEntry {
 	v.mu.RLock()
 	defer v.mu.RUnlock()

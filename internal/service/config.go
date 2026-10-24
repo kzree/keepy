@@ -23,30 +23,47 @@ type Credentials struct {
 	KeyFilePath string `toml:"key_file_path"`
 }
 
-// DefaultClipboardTimeout applies when clipboard_timeout is unset or invalid.
-const DefaultClipboardTimeout = 2 * time.Minute
+// Defaults apply when a timeout preference is unset or invalid.
+const (
+	DefaultClipboardTimeout = 2 * time.Minute
+	DefaultLockTimeout      = 5 * time.Minute
+)
 
 type Preferences struct {
 	Locale string `toml:"locale"`
 	// ClipboardTimeout is a Go duration such as "2m", or "off"/"0" to keep
 	// copied passwords until overwritten. Empty uses DefaultClipboardTimeout.
 	ClipboardTimeout string `toml:"clipboard_timeout,omitempty"`
+	// LockTimeout is the inactivity period before the vault locks, in the same
+	// format. Empty uses DefaultLockTimeout.
+	LockTimeout string `toml:"lock_timeout,omitempty"`
 }
 
 // ClipboardClearDelay returns how long a copied password stays in the
-// clipboard; zero disables clearing. An invalid value returns the default, so a
-// typo never leaves passwords in the clipboard indefinitely.
+// clipboard; zero disables clearing.
 func (p Preferences) ClipboardClearDelay() (time.Duration, error) {
-	value := strings.TrimSpace(p.ClipboardTimeout)
+	return parseTimeout("clipboard_timeout", p.ClipboardTimeout, DefaultClipboardTimeout)
+}
+
+// LockDelay returns the inactivity period before the vault locks; zero
+// disables locking.
+func (p Preferences) LockDelay() (time.Duration, error) {
+	return parseTimeout("lock_timeout", p.LockTimeout, DefaultLockTimeout)
+}
+
+// parseTimeout returns fallback for an empty value and zero for "off". An
+// invalid value also returns fallback, so a typo never disables protection.
+func parseTimeout(name, value string, fallback time.Duration) (time.Duration, error) {
+	value = strings.TrimSpace(value)
 	switch strings.ToLower(value) {
 	case "":
-		return DefaultClipboardTimeout, nil
+		return fallback, nil
 	case "off":
 		return 0, nil
 	}
 	delay, err := time.ParseDuration(value)
 	if err != nil || delay < 0 {
-		return DefaultClipboardTimeout, fmt.Errorf("invalid clipboard_timeout %q: use a duration such as \"2m\", or \"off\"", value)
+		return fallback, fmt.Errorf("invalid %s %q: use a duration such as \"2m\", or \"off\"", name, value)
 	}
 	return delay, nil
 }

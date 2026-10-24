@@ -12,8 +12,9 @@ import (
 )
 
 // DrainTeaCommands drives finite lifecycle commands without a terminal. Batch and
-// Sequence messages both wrap command slices; only periodic animation messages
-// are ignored, so focus, navigation, completion, and application messages run.
+// Sequence messages both wrap command slices; only animation and tea.Tick
+// commands are ignored, so focus, navigation, completion, and application
+// messages run.
 func DrainTeaCommands(t *testing.T, cmd tea.Cmd, update func(tea.Msg) tea.Cmd) {
 	t.Helper()
 	commands := []tea.Cmd{cmd}
@@ -26,10 +27,11 @@ func DrainTeaCommands(t *testing.T, cmd tea.Cmd, update func(tea.Msg) tea.Cmd) {
 		if cmd == nil {
 			continue
 		}
-		// Skip animation commands before they wait on timers. They do not carry
-		// form/application state; focus is set synchronously by the field model.
+		// Skip animation and timer commands before they wait. Animations carry no
+		// form/application state; tests deliver timer messages explicitly
+		// instead of waiting for elapsed time.
 		name := runtime.FuncForPC(reflect.ValueOf(cmd).Pointer()).Name()
-		if strings.HasPrefix(name, "charm.land/bubbles/v2/cursor.") || strings.HasPrefix(name, "charm.land/bubbles/v2/spinner.") {
+		if strings.HasPrefix(name, "charm.land/bubbles/v2/cursor.") || strings.HasPrefix(name, "charm.land/bubbles/v2/spinner.") || strings.HasPrefix(name, "charm.land/bubbletea/v2.Tick.") {
 			continue
 		}
 		msg := cmd()

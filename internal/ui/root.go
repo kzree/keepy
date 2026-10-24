@@ -35,6 +35,14 @@ type RootModel struct {
 	clipboardClearDelay   time.Duration
 	clipboardTimeoutError error
 	clipboardClearFailed  bool
+	now                   func() time.Time
+	// lastActivity is the latest user input while the vault is open.
+	lastActivity          time.Time
+	lockCheckID           uint64
+	lockDelay             time.Duration
+	lockTimeoutError      error
+	lockedAfterInactivity bool
+	lockDiscardedDraft    bool
 	operationSequence     uint64
 	pendingOperation      pendingVaultOperation
 	operationSpinner      spinner.Model
@@ -66,6 +74,7 @@ func NewRootModel() RootModel {
 		clipboardPending: true,
 		initClipboard:    initializeClipboard,
 		writeClipboard:   writeClipboardText,
+		now:              time.Now,
 	}
 	r.applyConfig(cfg)
 	r.updateApplicationNotice()
@@ -82,6 +91,10 @@ func (r RootModel) Init() tea.Cmd {
 }
 
 func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg.(type) {
+	case tea.KeyPressMsg, tea.MouseMsg, tea.PasteMsg:
+		r.lastActivity = r.now()
+	}
 	switch msg := msg.(type) {
 	case vaultOperationResult:
 		return r.handleVaultOperationResult(msg)
@@ -102,6 +115,8 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		r.updateApplicationNotice()
 		r.resizeViews()
 		return r, nil
+	case lockCheckMsg:
+		return r.handleLockCheck(msg)
 	case clipboardExpiredMsg:
 		if msg.ID != r.clipboardClearID {
 			return r, nil

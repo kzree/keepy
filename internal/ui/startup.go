@@ -81,8 +81,10 @@ func (r *RootModel) applyConfig(cfg *service.Config) {
 	r.setLocale(l)
 	r.keys, r.keymapError = control.ResolveKeymap(overrides)
 	r.clipboardClearDelay, r.clipboardTimeoutError = service.DefaultClipboardTimeout, nil
+	r.lockDelay, r.lockTimeoutError = service.DefaultLockTimeout, nil
 	if cfg != nil {
 		r.clipboardClearDelay, r.clipboardTimeoutError = cfg.Preferences.ClipboardClearDelay()
+		r.lockDelay, r.lockTimeoutError = cfg.Preferences.LockDelay()
 	}
 	r.login = login.NewLoginModel(cfg, r.locale, r.keys)
 	r.list = list.NewListModel(r.locale, r.keys)
@@ -92,11 +94,21 @@ func (r *RootModel) applyConfig(cfg *service.Config) {
 // clearing one another as individual operations recover.
 func (r *RootModel) updateApplicationNotice() {
 	var notices []string
+	if r.lockedAfterInactivity {
+		notice := r.t.Text(key.NoticeVaultLocked)
+		if r.lockDiscardedDraft {
+			notice += " " + r.t.Text(key.NoticeVaultLockedDraft)
+		}
+		notices = append(notices, notice)
+	}
 	if r.configLoadError != nil {
 		notices = append(notices, fmt.Sprintf(r.t.Text(key.NoticeConfigLoad), control.Label(r.keys.Reload.Keys()...), r.configLoadError))
 	}
 	if r.keymapError != nil {
 		notices = append(notices, fmt.Sprintf(r.t.Text(key.NoticeKeymapInvalid), r.keymapError))
+	}
+	if r.lockTimeoutError != nil {
+		notices = append(notices, fmt.Sprintf(r.t.Text(key.NoticeLockTimeoutInvalid), r.lockDelay, r.lockTimeoutError))
 	}
 	if r.clipboardTimeoutError != nil {
 		notices = append(notices, fmt.Sprintf(r.t.Text(key.NoticeClipboardTimeoutInvalid), r.clipboardClearDelay, r.clipboardTimeoutError))

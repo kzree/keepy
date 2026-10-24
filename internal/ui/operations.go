@@ -22,6 +22,7 @@ type vaultSession interface {
 	AddNewEntry(service.NewVaultEntry) error
 	UpdateEntry(gokeepasslib.UUID, service.NewVaultEntry) error
 	DeleteEntry(gokeepasslib.UUID) error
+	Close()
 }
 
 type vaultOperationKind uint8
@@ -125,10 +126,11 @@ func (r RootModel) handleVaultOperationResult(msg vaultOperationResult) (RootMod
 			r.login, cmd = r.login.Update(login.AuthenticationFailedMsg{Error: msg.err})
 		} else {
 			r.cfg, r.configSaveError = msg.config, msg.configError
+			r.lockedAfterInactivity, r.lockDiscardedDraft = false, false
 			r.updateApplicationNotice()
 			r.list.SetEntries(msg.entries)
 			r.activeView = screenList
-			cmd = r.list.Init()
+			cmd = tea.Batch(r.list.Init(), r.startLockTimer())
 		}
 	case operationFormSave:
 		r, cmd = r.finishFormSave(msg.err, msg.entries)

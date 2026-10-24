@@ -119,6 +119,21 @@ and copying is disabled. Restore clipboard access and restart Keepy to enable
 copying; the clipboard library caches initialization failures for the process.
 Ordinary clipboard-write failures can be retried explicitly with `C`.
 
+### Session lock
+
+After 5 minutes without keyboard or mouse input, Keepy locks the vault: it
+forgets the decrypted database and returns to login with the database still
+selected. Enter the password to continue. Locking also clears a copied password
+and discards an open entry form's unsaved changes; the bottom bar says so. A save,
+delete, or reload in progress finishes before the vault locks.
+
+```toml
+[preferences]
+lock_timeout = "15m" # Go duration; "off" disables locking
+```
+
+An invalid value keeps the 5-minute default and is reported in the bottom bar.
+
 ### Clipboard timeout
 
 Copied passwords are cleared from the clipboard after 2 minutes, and when Keepy

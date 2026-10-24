@@ -155,6 +155,14 @@ copy is cleared; clearing skips content another application wrote since, and
 quitting clears a pending copy. Invalid timeouts keep the default and show a
 notice; a failed clear is reported until the next successful copy.
 
+The vault locks after `Preferences.LockDelay` (default 5m, `off` disables)
+without key, mouse, or paste input. Input only records its time; one identified
+check is pending per session and reschedules for the remaining idle time.
+Locking waits for an accepted vault operation, then clears a pending clipboard
+copy, calls `Close` on the vault, and rebuilds login and list models, discarding
+any draft with a notice. Timer commands are not drained by test helpers; tests
+deliver timer messages explicitly with an injected clock.
+
 Startup config-load failures require explicit reload before login; never overwrite
 an unreadable or malformed config with fallback credentials. Clipboard startup
 failure disables copying without blocking vault use. Check clipboard readiness
