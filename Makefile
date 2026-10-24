@@ -46,5 +46,5 @@ build:
 		if [ "$$GOOS" = "windows" ]; then EXT=".exe"; fi; \
 		OUT="$(BUILD_DIR)/$(APP_NAME)-$$GOOS-$$GOARCH$$EXT"; \
 		echo "Building $$OUT..."; \
-		GOOS=$$GOOS GOARCH=$$GOARCH go build -o $$OUT ./cmd/app; \
+		GOOS=$$GOOS GOARCH=$$GOARCH go build -o $$OUT ./cmd/app || exit 1; \
 	done
