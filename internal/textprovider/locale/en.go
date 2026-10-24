@@ -18,17 +18,19 @@ var EnMap = Catalog{
 }
 
 var enApplication = map[string]string{
-	key.ConfigUnavailable:          "Configuration unavailable\n\nCorrect the configuration file or its access permissions.\nPress %s to retry loading it, or %s to quit.\nThe existing file will not be overwritten.",
-	key.NoticeConfigLoad:           "%s: retry configuration loading. %v",
-	key.NoticeClipboardUnavailable: "Clipboard unavailable. Restore clipboard access and restart to enable copying: %v",
-	key.NoticeConfigSave:           "Vault opened, but settings could not be saved: %v",
-	key.NoticeConfigSaveUncertain:  "Vault opened and settings saved, but their durability could not be confirmed: %v",
-	key.NoticeCopyFailed:           "Copy failed: %v",
-	key.NoticeKeymapInvalid:        "Key binding overrides ignored; using defaults. Correct [keybindings] and restart: %v",
-	key.ErrorClipboardNotReady:     "clipboard is not ready",
-	key.ErrorPasswordNotFound:      "password not found for entry",
-	key.ErrorClipboardWrite:        "failed to write password to clipboard",
-	key.ErrorReloadFailed:          "reload failed",
+	key.ConfigUnavailable:             "Configuration unavailable\n\nCorrect the configuration file or its access permissions.\nPress %s to retry loading it, or %s to quit.\nThe existing file will not be overwritten.",
+	key.NoticeConfigLoad:              "%s: retry configuration loading. %v",
+	key.NoticeClipboardUnavailable:    "Clipboard unavailable. Restore clipboard access and restart to enable copying: %v",
+	key.NoticeClipboardTimeoutInvalid: "Clipboard timeout setting ignored; copied passwords clear after %s. Correct clipboard_timeout and restart: %v",
+	key.NoticeClipboardClearFailed:    "Clipboard could not be cleared and may still contain a password. Clear it manually.",
+	key.NoticeConfigSave:              "Vault opened, but settings could not be saved: %v",
+	key.NoticeConfigSaveUncertain:     "Vault opened and settings saved, but their durability could not be confirmed: %v",
+	key.NoticeCopyFailed:              "Copy failed: %v",
+	key.NoticeKeymapInvalid:           "Key binding overrides ignored; using defaults. Correct [keybindings] and restart: %v",
+	key.ErrorClipboardNotReady:        "clipboard is not ready",
+	key.ErrorPasswordNotFound:         "password not found for entry",
+	key.ErrorClipboardWrite:           "failed to write password to clipboard",
+	key.ErrorReloadFailed:             "reload failed",
 }
 
 var enLogin = map[string]string{

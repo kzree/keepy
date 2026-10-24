@@ -118,7 +118,7 @@ func TestDelayedVaultOperationsKeepUpdateResponsiveAndRejectReplay(t *testing.T)
 			r := rootWithVault(t, fake)
 			r.db = vault
 			r.clipboardReady = true
-			r.writeClipboard = func([]byte) bool { return true }
+			r.writeClipboard = func([]byte) <-chan struct{} { return make(chan struct{}) }
 			work := prepareDelayedOperation(t, &r, operation)
 			initialReads := fake.passwordReads
 			initialSnapshots := fake.snapshotReads.Load()

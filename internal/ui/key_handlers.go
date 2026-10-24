@@ -26,7 +26,8 @@ func (r RootModel) handleKeyPressMsg(msg tea.KeyPressMsg) (RootModel, tea.Cmd, b
 				r.quitAfterOperation = true
 				return r, nil, true
 			}
-			return r, tea.Quit, true
+			r, cmd := r.quit()
+			return r, cmd, true
 		}
 		var cmd tea.Cmd
 		r.keymapHelp, cmd = r.keymapHelp.Update(msg)
@@ -40,7 +41,8 @@ func (r RootModel) handleKeyPressMsg(msg tea.KeyPressMsg) (RootModel, tea.Cmd, b
 	}
 	switch {
 	case key.Matches(msg, r.keys.Quit):
-		return r, tea.Quit, true
+		r, cmd := r.quit()
+		return r, cmd, true
 	case key.Matches(msg, r.keys.Reload) && r.activeView == screenLogin && r.configLoadError != nil:
 		r, cmd := r.retryConfiguration()
 		return r, cmd, true
@@ -48,7 +50,8 @@ func (r RootModel) handleKeyPressMsg(msg tea.KeyPressMsg) (RootModel, tea.Cmd, b
 		if r.activeView == screenLogin || (r.activeView == screenList && r.list.IsTextInputActive()) {
 			return r, nil, false
 		}
-		return r, tea.Quit, true
+		r, cmd := r.quit()
+		return r, cmd, true
 	}
 
 	return r, nil, false

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -234,4 +235,24 @@ func TestSaveConfigReturnsErrorWhenParentPathIsFile(t *testing.T) {
 	err := SaveConfig(&Config{})
 
 	require.Error(t, err)
+}
+
+func TestClipboardClearDelay(t *testing.T) {
+	for value, want := range map[string]time.Duration{
+		"":     DefaultClipboardTimeout,
+		"30s":  30 * time.Second,
+		" 5m ": 5 * time.Minute,
+		"off":  0,
+		"OFF":  0,
+		"0":    0,
+	} {
+		delay, err := Preferences{ClipboardTimeout: value}.ClipboardClearDelay()
+		require.NoError(t, err, value)
+		assert.Equal(t, want, delay, value)
+	}
+	for _, value := range []string{"2 minutes", "-1m", "never"} {
+		delay, err := Preferences{ClipboardTimeout: value}.ClipboardClearDelay()
+		require.ErrorContains(t, err, "clipboard_timeout", value)
+		assert.Equal(t, DefaultClipboardTimeout, delay, "invalid values must keep clearing enabled")
+	}
 }

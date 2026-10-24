@@ -2,9 +2,12 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/pelletier/go-toml/v2"
 	"kzree.com/keepy/internal/util"
@@ -20,8 +23,32 @@ type Credentials struct {
 	KeyFilePath string `toml:"key_file_path"`
 }
 
+// DefaultClipboardTimeout applies when clipboard_timeout is unset or invalid.
+const DefaultClipboardTimeout = 2 * time.Minute
+
 type Preferences struct {
 	Locale string `toml:"locale"`
+	// ClipboardTimeout is a Go duration such as "2m", or "off"/"0" to keep
+	// copied passwords until overwritten. Empty uses DefaultClipboardTimeout.
+	ClipboardTimeout string `toml:"clipboard_timeout,omitempty"`
+}
+
+// ClipboardClearDelay returns how long a copied password stays in the
+// clipboard; zero disables clearing. An invalid value returns the default, so a
+// typo never leaves passwords in the clipboard indefinitely.
+func (p Preferences) ClipboardClearDelay() (time.Duration, error) {
+	value := strings.TrimSpace(p.ClipboardTimeout)
+	switch strings.ToLower(value) {
+	case "":
+		return DefaultClipboardTimeout, nil
+	case "off":
+		return 0, nil
+	}
+	delay, err := time.ParseDuration(value)
+	if err != nil || delay < 0 {
+		return DefaultClipboardTimeout, fmt.Errorf("invalid clipboard_timeout %q: use a duration such as \"2m\", or \"off\"", value)
+	}
+	return delay, nil
 }
 
 type Config struct {

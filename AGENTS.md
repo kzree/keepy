@@ -149,6 +149,12 @@ fall back per key to English. Derive shortcut labels from binding constants with
 `control.Label`/`control.Hint`, and keep keymap context IDs stable and separate
 from translated group headings. Technical error causes keep their original text.
 
+Copying a password schedules a clear after `Preferences.ClipboardClearDelay`
+(default 2m, `off` disables). Timers carry a copy identity so only the latest
+copy is cleared; clearing skips content another application wrote since, and
+quitting clears a pending copy. Invalid timeouts keep the default and show a
+notice; a failed clear is reported until the next successful copy.
+
 Startup config-load failures require explicit reload before login; never overwrite
 an unreadable or malformed config with fallback credentials. Clipboard startup
 failure disables copying without blocking vault use. Check clipboard readiness

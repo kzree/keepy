@@ -119,6 +119,22 @@ and copying is disabled. Restore clipboard access and restart Keepy to enable
 copying; the clipboard library caches initialization failures for the process.
 Ordinary clipboard-write failures can be retried explicitly with `C`.
 
+### Clipboard timeout
+
+Copied passwords are cleared from the clipboard after 2 minutes, and when Keepy
+quits. If another application has replaced the clipboard contents in the
+meantime, they are left alone. Copying again restarts the timer. Configure it in
+`~/.config/keepy/config.toml`:
+
+```toml
+[preferences]
+clipboard_timeout = "30s" # Go duration such as "45s", "2m", "1h30m"
+# clipboard_timeout = "off" # keep copied passwords until overwritten
+```
+
+An invalid value keeps the 2-minute default and is reported in the bottom bar.
+If clearing fails, the bottom bar asks you to clear the clipboard manually.
+
 ### Custom keybindings
 
 Override actions in `~/.config/keepy/config.toml` with a `[keybindings]` table.

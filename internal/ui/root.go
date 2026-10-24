@@ -2,6 +2,8 @@
 package ui
 
 import (
+	"time"
+
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"kzree.com/keepy/internal/control"
@@ -17,20 +19,26 @@ import (
 type RootModel struct {
 	activeView screen
 
-	db                 vaultSession
-	cfg                *service.Config
-	configLoadError    error
-	configSaveError    error
-	clipboardError     error
-	copyError          error
-	clipboardPending   bool
-	clipboardReady     bool
-	initClipboard      func() error
-	writeClipboard     func([]byte) bool
-	operationSequence  uint64
-	pendingOperation   pendingVaultOperation
-	operationSpinner   spinner.Model
-	quitAfterOperation bool
+	db               vaultSession
+	cfg              *service.Config
+	configLoadError  error
+	configSaveError  error
+	clipboardError   error
+	copyError        error
+	clipboardPending bool
+	clipboardReady   bool
+	initClipboard    func() error
+	writeClipboard   func([]byte) <-chan struct{}
+	// clipboardChanged is the copy's change channel while a clear is pending.
+	clipboardChanged      <-chan struct{}
+	clipboardClearID      uint64
+	clipboardClearDelay   time.Duration
+	clipboardTimeoutError error
+	clipboardClearFailed  bool
+	operationSequence     uint64
+	pendingOperation      pendingVaultOperation
+	operationSpinner      spinner.Model
+	quitAfterOperation    bool
 
 	login       login.LoginModel
 	list        list.ListModel
@@ -91,6 +99,14 @@ func (r RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		r.clipboardError = msg.Error
 		r.clipboardReady = msg.Error == nil
 		r.copyError = nil
+		r.updateApplicationNotice()
+		r.resizeViews()
+		return r, nil
+	case clipboardExpiredMsg:
+		if msg.ID != r.clipboardClearID {
+			return r, nil
+		}
+		r.clearCopiedPassword()
 		r.updateApplicationNotice()
 		r.resizeViews()
 		return r, nil

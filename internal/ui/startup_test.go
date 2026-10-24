@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
@@ -81,7 +82,7 @@ func TestClipboardResultCanArriveAfterLoginWithoutLosingOtherNotices(t *testing.
 	r.db = vault
 	initializations, writes := 0, 0
 	r.initClipboard = func() error { initializations++; return errors.New("lateclipboardfailure") }
-	r.writeClipboard = func([]byte) bool { writes++; return true }
+	r.writeClipboard = func([]byte) <-chan struct{} { writes++; return make(chan struct{}) }
 	commands, ok := r.Init()().(tea.BatchMsg)
 	require.True(t, ok)
 	require.Len(t, commands, 2)
@@ -131,7 +132,7 @@ func TestClipboardStartupFailureDoesNotPreventVaultUse(t *testing.T) {
 	r.db = vault
 	r.initClipboard = func() error { return errors.New("clipboardbackendfailure") }
 	writes := 0
-	r.writeClipboard = func([]byte) bool { writes++; return true }
+	r.writeClipboard = func([]byte) <-chan struct{} { writes++; return make(chan struct{}) }
 	drainRoot(t, &r, r.Init())
 	require.Error(t, r.clipboardError)
 	sendRoot(t, &r, tea.WindowSizeMsg{Width: 120, Height: 30})
@@ -155,20 +156,20 @@ func TestClipboardWriteFailureAndRecoveryKeepOtherNotices(t *testing.T) {
 	r := rootWithVault(t, vault)
 	r.clipboardPending = true
 	r.initClipboard = func() error { return nil }
-	r.writeClipboard = func([]byte) bool { t.Fatal("clipboard write before readiness"); return false }
+	r.writeClipboard = func([]byte) <-chan struct{} { t.Fatal("clipboard write before readiness"); return nil }
 	sendRoot(t, &r, list.CopyPasswordRequestMsg{ID: id})
 	assert.Zero(t, vault.passwordReads)
 	sendRoot(t, &r, clipboardInitializedMsg{})
 	assert.True(t, r.clipboardReady)
 	assert.Nil(t, r.copyError)
 	r.configSaveError = errors.New("settingsfailure")
-	r.writeClipboard = func(data []byte) bool { assert.Equal(t, "secret", string(data)); return false }
+	r.writeClipboard = func(data []byte) <-chan struct{} { assert.Equal(t, "secret", string(data)); return nil }
 	r, cmd := r.handleCopyPasswordRequestMsg(list.CopyPasswordRequestMsg{ID: id})
 	assert.Nil(t, cmd)
 	require.Error(t, r.copyError)
 	assert.Contains(t, r.View().Content, "settingsfailure")
 	assert.Contains(t, r.View().Content, "Copy failed")
-	r.writeClipboard = func(data []byte) bool { assert.Equal(t, "secret", string(data)); return true }
+	r.writeClipboard = func(data []byte) <-chan struct{} { assert.Equal(t, "secret", string(data)); return make(chan struct{}) }
 	r, cmd = r.handleCopyPasswordRequestMsg(list.CopyPasswordRequestMsg{ID: id})
 	require.NotNil(t, cmd)
 	assert.IsType(t, list.CopyPasswordSuccessMsg{}, cmd())
@@ -190,4 +191,104 @@ func TestConfigurationRecoveryKeepsClipboardFailure(t *testing.T) {
 	assert.NotContains(t, r.renderBottomBar(118, 28), "configfailure")
 	assert.NotNil(t, r.cfg)
 	assert.Equal(t, service.Preferences{Locale: "en"}, r.cfg.Preferences)
+}
+
+// fakeClipboard records writes. Closing changed simulates another application
+// overwriting the copied password; fail makes writes report failure.
+type fakeClipboard struct {
+	writes  []string
+	changed chan struct{}
+	fail    bool
+}
+
+func (c *fakeClipboard) write(data []byte) <-chan struct{} {
+	c.writes = append(c.writes, string(data))
+	if c.fail {
+		return nil
+	}
+	c.changed = make(chan struct{})
+	return c.changed
+}
+
+// rootWithCopiedPassword copies "secret" with the given clear delay and returns
+// the copy request for repeating it.
+func rootWithCopiedPassword(t *testing.T, delay time.Duration) (RootModel, *fakeClipboard, list.CopyPasswordRequestMsg) {
+	t.Helper()
+	copyRequest := list.CopyPasswordRequestMsg{ID: gokeepasslib.NewUUID()}
+	r := rootWithVault(t, &outcomeVault{passwords: map[gokeepasslib.UUID]string{copyRequest.ID: "secret"}})
+	clip := &fakeClipboard{}
+	r.clipboardReady, r.writeClipboard, r.clipboardClearDelay = true, clip.write, delay
+	r, cmd := r.handleCopyPasswordRequestMsg(copyRequest)
+	require.NotNil(t, cmd)
+	require.Equal(t, []string{"secret"}, clip.writes)
+	return r, clip, copyRequest
+}
+
+func TestCopiedPasswordIsClearedOnceAfterTimeout(t *testing.T) {
+	r, clip, _ := rootWithCopiedPassword(t, 2*time.Minute)
+	expired := clipboardExpiredMsg{ID: r.clipboardClearID}
+	sendRoot(t, &r, expired)
+	assert.Equal(t, []string{"secret", ""}, clip.writes)
+	sendRoot(t, &r, expired)
+	r, _ = r.quit()
+	assert.Len(t, clip.writes, 2, "an already cleared clipboard is not written again")
+}
+
+func TestNewerCopySupersedesEarlierClipboardTimeout(t *testing.T) {
+	r, clip, copyRequest := rootWithCopiedPassword(t, 2*time.Minute)
+	first := clipboardExpiredMsg{ID: r.clipboardClearID}
+	r, _ = r.handleCopyPasswordRequestMsg(copyRequest)
+	sendRoot(t, &r, first)
+	assert.Equal(t, []string{"secret", "secret"}, clip.writes, "the earlier timer must not shorten the newer copy")
+	sendRoot(t, &r, clipboardExpiredMsg{ID: r.clipboardClearID})
+	assert.Equal(t, []string{"secret", "secret", ""}, clip.writes)
+}
+
+func TestClipboardTimeoutKeepsContentCopiedElsewhere(t *testing.T) {
+	r, clip, _ := rootWithCopiedPassword(t, 2*time.Minute)
+	close(clip.changed)
+	sendRoot(t, &r, clipboardExpiredMsg{ID: r.clipboardClearID})
+	r, _ = r.quit()
+	assert.Equal(t, []string{"secret"}, clip.writes)
+}
+
+func TestQuitClearsPendingCopiedPassword(t *testing.T) {
+	r, clip, _ := rootWithCopiedPassword(t, 2*time.Minute)
+	cmd := updateRoot(&r, tea.KeyPressMsg(tea.Key{Code: 'c', Mod: tea.ModCtrl}))
+	require.NotNil(t, cmd)
+	assert.IsType(t, tea.QuitMsg{}, cmd())
+	assert.Equal(t, []string{"secret", ""}, clip.writes)
+}
+
+func TestDisabledClipboardTimeoutKeepsCopiedPassword(t *testing.T) {
+	r, clip, _ := rootWithCopiedPassword(t, 0)
+	sendRoot(t, &r, clipboardExpiredMsg{ID: r.clipboardClearID})
+	r, _ = r.quit()
+	assert.Equal(t, []string{"secret"}, clip.writes)
+}
+
+func TestClipboardClearFailureIsReportedUntilNextCopy(t *testing.T) {
+	r, clip, copyRequest := rootWithCopiedPassword(t, 2*time.Minute)
+	clip.fail = true
+	sendRoot(t, &r, clipboardExpiredMsg{ID: r.clipboardClearID})
+	assert.Contains(t, r.renderBottomBar(118, 28), "Clipboard could not be cleared")
+	clip.fail = false
+	r, _ = r.handleCopyPasswordRequestMsg(copyRequest)
+	assert.NotContains(t, r.renderBottomBar(118, 28), "Clipboard could not be cleared")
+}
+
+func TestClipboardTimeoutComesFromConfig(t *testing.T) {
+	for value, want := range map[string]time.Duration{"": service.DefaultClipboardTimeout, "30s": 30 * time.Second, "off": 0, "never": service.DefaultClipboardTimeout} {
+		home := testutil.TempHome(t)
+		path := filepath.Join(home, ".config", "keepy", "config.toml")
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte("[preferences]\nclipboard_timeout = '"+value+"'\n"), 0o600))
+		r := NewRootModel()
+		assert.Equal(t, want, r.clipboardClearDelay, value)
+		if value == "never" {
+			assert.Contains(t, r.renderBottomBar(118, 28), "Clipboard timeout setting ignored", "invalid values are reported and keep the default")
+		} else {
+			assert.NotContains(t, r.renderBottomBar(118, 28), "Clipboard timeout", value)
+		}
+	}
 }

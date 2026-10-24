@@ -58,18 +58,25 @@ func (r RootModel) handleCopyPasswordRequestMsg(msg list.CopyPasswordRequestMsg)
 	if err == nil && pwd == "" {
 		err = errors.New(r.t.Text(key.ErrorPasswordNotFound))
 	}
-	if err == nil && !r.writeClipboard([]byte(pwd)) {
-		err = errors.New(r.t.Text(key.ErrorClipboardWrite))
+	var changed <-chan struct{}
+	if err == nil {
+		if changed = r.writeClipboard([]byte(pwd)); changed == nil {
+			err = errors.New(r.t.Text(key.ErrorClipboardWrite))
+		}
 	}
 	r.copyError = err
-	r.updateApplicationNotice()
-	r.resizeViews()
 	if err != nil {
+		r.updateApplicationNotice()
+		r.resizeViews()
 		return r, nil
 	}
-	return r, func() tea.Msg {
+	r.clipboardClearFailed = false
+	clearCmd := r.scheduleClipboardClear(changed)
+	r.updateApplicationNotice()
+	r.resizeViews()
+	return r, tea.Batch(func() tea.Msg {
 		return list.CopyPasswordSuccessMsg{}
-	}
+	}, clearCmd)
 }
 
 func (r RootModel) handleWindowSizeMsg(msg tea.WindowSizeMsg) (RootModel, tea.Cmd) {

@@ -147,7 +147,7 @@ func (r RootModel) handleVaultOperationResult(msg vaultOperationResult) (RootMod
 	// A quit requested during a save waits for the outcome; it must not abandon
 	// an operation whose atomic replacement may already have committed.
 	if r.quitAfterOperation {
-		return r, tea.Quit
+		return r.quit()
 	}
 	return r, cmd
 }

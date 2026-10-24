@@ -5,17 +5,19 @@ type Key = string
 
 // Application
 const (
-	ConfigUnavailable          = "CONFIG_UNAVAILABLE"
-	NoticeConfigLoad           = "NOTICE_CONFIG_LOAD"
-	NoticeClipboardUnavailable = "NOTICE_CLIPBOARD_UNAVAILABLE"
-	NoticeConfigSave           = "NOTICE_CONFIG_SAVE"
-	NoticeConfigSaveUncertain  = "NOTICE_CONFIG_SAVE_UNCERTAIN"
-	NoticeCopyFailed           = "NOTICE_COPY_FAILED"
-	NoticeKeymapInvalid        = "NOTICE_KEYMAP_INVALID"
-	ErrorClipboardNotReady     = "ERROR_CLIPBOARD_NOT_READY"
-	ErrorPasswordNotFound      = "ERROR_PASSWORD_NOT_FOUND"
-	ErrorClipboardWrite        = "ERROR_CLIPBOARD_WRITE"
-	ErrorReloadFailed          = "ERROR_RELOAD_FAILED"
+	ConfigUnavailable             = "CONFIG_UNAVAILABLE"
+	NoticeConfigLoad              = "NOTICE_CONFIG_LOAD"
+	NoticeClipboardUnavailable    = "NOTICE_CLIPBOARD_UNAVAILABLE"
+	NoticeClipboardTimeoutInvalid = "NOTICE_CLIPBOARD_TIMEOUT_INVALID"
+	NoticeClipboardClearFailed    = "NOTICE_CLIPBOARD_CLEAR_FAILED"
+	NoticeConfigSave              = "NOTICE_CONFIG_SAVE"
+	NoticeConfigSaveUncertain     = "NOTICE_CONFIG_SAVE_UNCERTAIN"
+	NoticeCopyFailed              = "NOTICE_COPY_FAILED"
+	NoticeKeymapInvalid           = "NOTICE_KEYMAP_INVALID"
+	ErrorClipboardNotReady        = "ERROR_CLIPBOARD_NOT_READY"
+	ErrorPasswordNotFound         = "ERROR_PASSWORD_NOT_FOUND"
+	ErrorClipboardWrite           = "ERROR_CLIPBOARD_WRITE"
+	ErrorReloadFailed             = "ERROR_RELOAD_FAILED"
 )
 
 // Login

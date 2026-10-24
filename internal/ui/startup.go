@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"golang.design/x/clipboard"
@@ -19,8 +20,50 @@ import (
 
 type clipboardInitializedMsg struct{ Error error }
 
-func initializeClipboard() error          { return clipboard.Init() }
-func writeClipboardText(data []byte) bool { return clipboard.Write(clipboard.FmtText, data) != nil }
+// clipboardExpiredMsg asks to clear the password from copy ID; a newer copy
+// supersedes it.
+type clipboardExpiredMsg struct{ ID uint64 }
+
+func initializeClipboard() error { return clipboard.Init() }
+
+// writeClipboardText returns a channel that fires once the clipboard is later
+// overwritten, or nil if the write failed.
+func writeClipboardText(data []byte) <-chan struct{} { return clipboard.Write(clipboard.FmtText, data) }
+
+// scheduleClipboardClear arms clearing for a password copy that returned changed.
+func (r *RootModel) scheduleClipboardClear(changed <-chan struct{}) tea.Cmd {
+	r.clipboardClearID++
+	r.clipboardChanged = nil
+	if r.clipboardClearDelay == 0 {
+		return nil
+	}
+	r.clipboardChanged = changed
+	id := r.clipboardClearID
+	return tea.Tick(r.clipboardClearDelay, func(time.Time) tea.Msg { return clipboardExpiredMsg{ID: id} })
+}
+
+// clearCopiedPassword empties the clipboard if it still holds the copied
+// password. Content written by another application is left alone.
+func (r *RootModel) clearCopiedPassword() {
+	changed := r.clipboardChanged
+	if changed == nil {
+		return
+	}
+	r.clipboardChanged = nil
+	select {
+	case <-changed:
+		return
+	default:
+	}
+	r.clipboardClearFailed = r.writeClipboard(nil) == nil
+}
+
+// quit clears a pending password copy before exiting, so quitting early does
+// not leave it in the clipboard past its timeout.
+func (r RootModel) quit() (RootModel, tea.Cmd) {
+	r.clearCopiedPassword()
+	return r, tea.Quit
+}
 
 func (r *RootModel) setLocale(l locale.Locale) {
 	r.locale = l
@@ -37,6 +80,10 @@ func (r *RootModel) applyConfig(cfg *service.Config) {
 	}
 	r.setLocale(l)
 	r.keys, r.keymapError = control.ResolveKeymap(overrides)
+	r.clipboardClearDelay, r.clipboardTimeoutError = service.DefaultClipboardTimeout, nil
+	if cfg != nil {
+		r.clipboardClearDelay, r.clipboardTimeoutError = cfg.Preferences.ClipboardClearDelay()
+	}
 	r.login = login.NewLoginModel(cfg, r.locale, r.keys)
 	r.list = list.NewListModel(r.locale, r.keys)
 }
@@ -50,6 +97,12 @@ func (r *RootModel) updateApplicationNotice() {
 	}
 	if r.keymapError != nil {
 		notices = append(notices, fmt.Sprintf(r.t.Text(key.NoticeKeymapInvalid), r.keymapError))
+	}
+	if r.clipboardTimeoutError != nil {
+		notices = append(notices, fmt.Sprintf(r.t.Text(key.NoticeClipboardTimeoutInvalid), r.clipboardClearDelay, r.clipboardTimeoutError))
+	}
+	if r.clipboardClearFailed {
+		notices = append(notices, r.t.Text(key.NoticeClipboardClearFailed))
 	}
 	if r.clipboardError != nil {
 		// golang.design/x/clipboard caches Init's result with sync.Once. Retrying
