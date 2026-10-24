@@ -99,6 +99,7 @@ func TestAuthenticationFailureAllowsKeyboardCorrectionAndExplicitRetry(t *testin
 	sendRoot(t, &r, tea.WindowSizeMsg{Width: 120, Height: 30})
 	assert.Equal(t, 1, fake.authCalls, "failure and resizing must not automatically retry")
 	fake.authErr = nil
+	sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: tea.KeyF4}))
 	// Failure opens the full editable form: password, database, then key path.
 	for _, value := range []string{"correct-password", "corrected.kdbx", "corrected.key"} {
 		sendRoot(t, &r, tea.KeyPressMsg(tea.Key{Code: 'a', Mod: tea.ModCtrl}))

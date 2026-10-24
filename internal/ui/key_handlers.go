@@ -57,7 +57,7 @@ func (r RootModel) handleKeyPressMsg(msg tea.KeyPressMsg) (RootModel, tea.Cmd, b
 }
 
 func (r RootModel) isTextInputActive() bool {
-	return (r.activeView == screenLogin && r.configLoadError == nil) || (r.activeView == screenList && r.list.IsTextInputActive())
+	return (r.activeView == screenLogin && r.configLoadError == nil && r.login.IsTextInputActive()) || (r.activeView == screenList && r.list.IsTextInputActive())
 }
 
 func (r RootModel) keymapContext() string {
@@ -65,7 +65,7 @@ func (r RootModel) keymapContext() string {
 		if r.configLoadError != nil {
 			return control.RecoveryKeys
 		}
-		return control.LoginKeys
+		return r.login.KeymapContext()
 	}
 	return r.list.KeymapContext()
 }

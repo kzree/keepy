@@ -49,13 +49,12 @@ func (m *KeymapHelpModel) updateContent() {
 	if m.busy {
 		body.WriteString("Vault operation in progress: actions and form input wait; help and resizing remain available.\n")
 	}
-	body.WriteString("Bindings apply in their named view. Question marks remain text in input fields.\n")
 	for _, group := range control.KeymapGroups() {
 		title := group.Title
 		if group.Title == m.context {
 			title += " (current)"
 		}
-		body.WriteString("\n" + lipgloss.NewStyle().Bold(true).Render(title) + "\n")
+		body.WriteString("\n" + lipgloss.NewStyle().Foreground(lipgloss.BrightBlue).Bold(true).Render(title) + "\n")
 		for _, binding := range group.Bindings {
 			body.WriteString("  " + strings.Join(binding.Keys(), " / ") + " — " + binding.Help().Desc + "\n")
 		}

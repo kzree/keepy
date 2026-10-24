@@ -114,6 +114,12 @@ Login updates saved credentials without resetting existing preferences. A config
 save error is reported separately and must not undo successful authentication or
 prevent using the opened vault.
 
+Login browsing must preserve entered values on selection and cancellation, and
+file selection must never submit authentication automatically. Include a key file
+in the authentication request only when explicitly enabled. Scope directory-read
+completions to their picker session/request so stale results cannot replace a
+newer listing or reopen a cancelled picker.
+
 Startup config-load failures require explicit reload before login; never overwrite
 an unreadable or malformed config with fallback credentials. Clipboard startup
 failure disables copying without blocking vault use. Check clipboard readiness

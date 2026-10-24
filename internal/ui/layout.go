@@ -56,6 +56,7 @@ func (r RootModel) renderBottomBar(width, height int) string {
 func (r *RootModel) resizeViews() {
 	w, h := r.getContentSize()
 	r.list.SetListTableSize(w, h)
+	r.login.SetSize(w, h)
 	if r.helpVisible {
 		r.keymapHelp.SetContext(r.keymapContext(), r.pendingOperation.kind != operationNone)
 		r.keymapHelp.SetSize(w, h)

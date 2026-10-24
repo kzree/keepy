@@ -3,6 +3,7 @@ package control
 import (
 	"strings"
 
+	"charm.land/bubbles/v2/filepicker"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/table"
 	"charm.land/bubbles/v2/viewport"
@@ -18,11 +19,19 @@ const (
 	ConfirmationKeys = "Delete confirmation"
 	RecoveryKeys     = "Error recovery"
 	HelpKeys         = "Help"
+	FilePickerKeys   = "Login file picker"
 )
 
 type KeymapGroup struct {
 	Title    string
 	Bindings []key.Binding
+}
+
+func LoginPickerKeyMap() filepicker.KeyMap {
+	keys := filepicker.DefaultKeyMap()
+	keys.Back.SetKeys("h", "backspace", "left")
+	keys.Back.SetHelp("h / backspace / left", "parent directory")
+	return keys
 }
 
 func binding(description string, keys ...string) key.Binding {
@@ -67,6 +76,7 @@ func KeymapGroups() []KeymapGroup {
 	}
 	tableKeys := EntryTableKeyMap()
 	help := HelpViewportKeyMap()
+	picker := LoginPickerKeyMap()
 	return []KeymapGroup{
 		{GlobalKeys, []key.Binding{
 			binding("open help everywhere", ShowHelpAnywhere),
@@ -74,7 +84,17 @@ func KeymapGroups() []KeymapGroup {
 			binding("quit; waits for accepted vault work", QuitApplication),
 			binding("quit from list/help, outside text inputs; waits for work", QuitApplicationAlt),
 		}},
-		{LoginKeys, append(append([]key.Binding{}, navigation...), binding("toggle database/key-file fields", LoginToggle))},
+		{LoginKeys, append(append([]key.Binding{}, navigation...),
+			binding("toggle manual path fields", LoginToggle),
+			binding("browse for a database", LoginBrowseDatabase),
+			binding("browse for a key file; enable it on selection", LoginBrowseKeyFile),
+			binding("enable/disable optional key file (retains path)", LoginToggleKeyFile))},
+		{FilePickerKeys, []key.Binding{
+			picker.Up, picker.Down, picker.PageUp, picker.PageDown,
+			picker.GoToTop, picker.GoToLast, picker.Back,
+			binding("open directory / select file", "enter"), binding("open directory", "l", "right"),
+			binding("cancel browsing; retain form values", CloseEntryForm), binding("retry reading directory", ReloadVault),
+		}},
 		{ListKeys, []key.Binding{
 			binding("copy selected password (clipboard must be ready)", CopyEntry),
 			binding("create entry", NewEntry), binding("edit selected entry", EditEntry),

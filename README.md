@@ -34,7 +34,26 @@ it waits for accepted vault work to finish.
 - `Enter` or `Tab` - next field; `Enter` submits on the last field
 - `Shift+Tab` - previous field
 - `Ctrl+T` - toggle file path fields
+- `F2` - browse for a database
+- `F3` - browse for a key file (enables key-file authentication on selection)
+- `F4` - enable/disable the optional key file; retain its path in the current form
 - `Ctrl+R` - retry configuration loading after a startup configuration error
+
+The selected database and key-file state stay visible above the login form.
+Manual paths remain supported with `Ctrl+T`. Disabling a key file uses password-only
+authentication; enabling it requires selecting or entering a key-file path.
+
+#### Login file picker
+
+- `Enter` - open a directory or choose a file
+- Arrow keys or `j`/`k` - move; Page Up/Down - page through files
+- `Left`, `Backspace`, or `h` - parent directory
+- `Esc` - cancel browsing without discarding entered values
+- `Ctrl+R` - retry a failed directory read
+- `?` or `F1` - open help
+
+Both file pickers start in the home folder each time they are opened.
+Selecting a file returns to the form; it never submits authentication by itself.
 
 ### List view
 
@@ -95,8 +114,8 @@ Ordinary clipboard-write failures can be retried explicitly with `C`.
 - [x] Edit entry
 - [x] Delete entry
   - [x] Confirm component
-- [ ] Login redesign, both UI and UX
-  - [ ] File picker for paths
+- [x] Login redesign, both UI and UX
+  - [x] File picker for paths
 - [ ] Key hints
   - [x] Scrollable keymap help (`?` / `F1`)
   - [ ] Configurable keybinds

@@ -2,14 +2,13 @@
 package login
 
 import (
+	"charm.land/bubbles/v2/filepicker"
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 	"kzree.com/keepy/internal/control"
 	"kzree.com/keepy/internal/service"
-	"kzree.com/keepy/internal/style"
-	"kzree.com/keepy/internal/util"
 )
 
 const authenticationText = "Authenticating..."
@@ -21,14 +20,21 @@ const (
 )
 
 type LoginModel struct {
-	form             *huh.Form
-	spinner          spinner.Model
-	loading          bool
-	savedCredentials *service.Credentials
-	authError        error
-	showPathFields   bool
-	formValues       *loginFormValues
-	requestID        uint64
+	form           *huh.Form
+	spinner        spinner.Model
+	loading        bool
+	authError      error
+	showPathFields bool
+	formValues     *loginFormValues
+	requestID      uint64
+	submitIntent   bool
+	width, height  int
+	picker         filepicker.Model
+	picking        pickerTarget
+	pickerSession  uint64
+	pickerRequest  uint64
+	pickerLoading  bool
+	pickerError    error
 }
 
 func NewLoginModel(cfg *service.Config) LoginModel {
@@ -48,16 +54,17 @@ func NewLoginModel(cfg *service.Config) LoginModel {
 		password:    "",
 		dbPath:      creds.DBPath,
 		keyFilePath: creds.KeyFilePath,
+		useKeyFile:  creds.KeyFilePath != "",
 	}
 
-	return LoginModel{
-		form:             util.Ternary(showPathFields, newLoginForm(&formValues), newShortLoginForm(&formValues)),
-		spinner:          s,
-		loading:          false,
-		savedCredentials: creds,
-		showPathFields:   showPathFields,
-		formValues:       &formValues,
+	m := LoginModel{
+		spinner:        s,
+		loading:        false,
+		showPathFields: showPathFields,
+		formValues:     &formValues,
 	}
+	m.setForm()
+	return m
 }
 
 func (m LoginModel) Init() tea.Cmd {
@@ -68,25 +75,54 @@ func (m LoginModel) Update(msg tea.Msg) (LoginModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case pickerResultMsg:
+		return m.handlePickerResult(msg)
 	case AuthenticationFailedMsg:
 		return m.handleAuthenticationFailedMsg(msg)
 	case tea.KeyPressMsg:
 		if m.loading {
 			return m, nil
 		}
+		if m.picking != pickerNone {
+			return m.updatePicker(msg)
+		}
 		switch msg.String() {
 		case control.LoginToggle:
 			return m.handleTogglePathFields()
+		case control.LoginBrowseDatabase:
+			return m.openPicker(pickerDatabase)
+		case control.LoginBrowseKeyFile:
+			return m.openPicker(pickerKeyFile)
+		case control.LoginToggleKeyFile:
+			m.formValues.useKeyFile = !m.formValues.useKeyFile
+			if m.formValues.useKeyFile && m.formValues.keyFilePath == "" {
+				m.showPathFields = true
+			}
+			cmd := m.rebuildForm()
+			return m, cmd
 		}
+		if msg.String() == "enter" && m.lastFieldReady() {
+			m.submitIntent = true
+		}
+	}
+	if m.picking != pickerNone {
+		return m, nil
 	}
 
 	form, cmd := m.form.Update(msg)
 	if f, ok := form.(*huh.Form); ok {
 		m.form = f
 	}
+	m.resizeForm()
 	cmds = append(cmds, cmd)
 
 	if m.form.State == huh.StateCompleted && !m.loading {
+		// Huh completes navigation through commands. Browsing or rebuilding can
+		// invalidate an earlier Enter; a late completion must not authenticate.
+		if !m.submitIntent {
+			cmd := m.rebuildForm()
+			return m, cmd
+		}
 		m.loading = true
 		m.requestID++
 		m.authError = nil
@@ -103,17 +139,26 @@ func (m LoginModel) Update(msg tea.Msg) (LoginModel, tea.Cmd) {
 }
 
 func (m LoginModel) View() string {
+	if m.picking != pickerNone {
+		return m.pickerView()
+	}
 	if m.loading {
-		return m.spinner.View() + authenticationText
+		return m.loadingView()
 	}
 
-	body := m.form.View()
+	return m.loginView()
+}
 
-	if m.authError != nil {
-		body += "\n" + style.ErrorText.Render(m.authError.Error())
+func (m LoginModel) lastFieldReady() bool {
+	last := passwordKey
+	if m.showPathFields {
+		last = dbPathKey
+		if m.formValues.useKeyFile {
+			last = keyFilePathKey
+		}
 	}
-
-	return body
+	field := m.form.GetFocusedField()
+	return field != nil && field.GetKey() == last && m.formValues.dbPath != "" && (!m.formValues.useKeyFile || m.formValues.keyFilePath != "")
 }
 
 func (m *LoginModel) submitAuth() tea.Cmd {
@@ -123,6 +168,9 @@ func (m *LoginModel) submitAuth() tea.Cmd {
 		KeyFilePath: m.formValues.keyFilePath,
 		Password:    m.formValues.password,
 	}
+	if !m.formValues.useKeyFile {
+		msg.KeyFilePath = ""
+	}
 
 	return func() tea.Msg {
 		return msg
@@ -130,3 +178,12 @@ func (m *LoginModel) submitAuth() tea.Cmd {
 }
 
 func (m LoginModel) AcceptsSubmission(id uint64) bool { return m.loading && m.requestID == id }
+
+func (m LoginModel) IsTextInputActive() bool { return m.picking == pickerNone }
+
+func (m LoginModel) KeymapContext() string {
+	if m.picking != pickerNone {
+		return control.FilePickerKeys
+	}
+	return control.LoginKeys
+}

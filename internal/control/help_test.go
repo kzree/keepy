@@ -22,7 +22,7 @@ func TestGroupedKeymapUsesEffectiveNavigationBindings(t *testing.T) {
 			assert.NotEmpty(t, binding.Help().Desc)
 		}
 	}
-	for _, title := range []string{GlobalKeys, LoginKeys, ListKeys, SearchKeys, EntryFormKeys, ConfirmationKeys, RecoveryKeys, HelpKeys} {
+	for _, title := range []string{GlobalKeys, LoginKeys, FilePickerKeys, ListKeys, SearchKeys, EntryFormKeys, ConfirmationKeys, RecoveryKeys, HelpKeys} {
 		assert.Contains(t, byTitle, title)
 	}
 	actual := EntryTableKeyMap()
